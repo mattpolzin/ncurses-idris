@@ -71,6 +71,27 @@ prim__underlineAttr : PrimIO Int
 %foreign "C:standout_attr,ncurses-idris"
 prim__standoutAttr : PrimIO Int
 
+%foreign "C:reverse_attr,ncurses-idris"
+prim__reverseAttr : PrimIO Int
+
+%foreign "C:blink_attr,ncurses-idris"
+prim__blinkAttr : PrimIO Int
+
+%foreign "C:dim_attr,ncurses-idris"
+prim__dimAttr : PrimIO Int
+
+%foreign "C:bold_attr,ncurses-idris"
+prim__boldAttr : PrimIO Int
+
+%foreign "C:protected_attr,ncurses-idris"
+prim__protectedAttr : PrimIO Int
+
+%foreign "C:invisible_attr,ncurses-idris"
+prim__invisibleAttr : PrimIO Int
+
+%foreign "C:color_pair_attr,ncurses-idris"
+prim__colorPairAttr : Int -> PrimIO Int
+
 ||| When you make new windows with @newWindow@
 ||| this data type stores a reference for you
 ||| to use with any function that operates on
@@ -182,6 +203,13 @@ public export
 data Attribute = Normal
                | Underline
                | Standout
+               | Reverse
+               | Blink
+               | Dim
+               | Bold
+               | Protected
+               | Invisible
+               | ColorPair Nat
 
 ||| Get the Int representation ncurses cares about for a
 ||| particular @Attribute@.
@@ -190,6 +218,13 @@ getAttribute attr = case attr of
                          Normal    => primIO $ prim__normalAttr
                          Underline => primIO $ prim__underlineAttr
                          Standout  => primIO $ prim__standoutAttr
+                         Reverse   => primIO $ prim__reverseAttr
+                         Blink     => primIO $ prim__blinkAttr
+                         Dim       => primIO $ prim__dimAttr
+                         Bold      => primIO $ prim__boldAttr
+                         Protected => primIO $ prim__protectedAttr
+                         Invisible => primIO $ prim__invisibleAttr
+                         (ColorPair idx) => primIO $ prim__colorPairAttr (cast idx)
 
 ||| Set an attribute to be applied to output text
 ||| until it is cleared or overwritten.

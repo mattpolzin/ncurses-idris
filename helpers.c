@@ -18,3 +18,31 @@ int standout_attr() {
   return A_STANDOUT;
 }
 
+int reverse_attr() {
+  return A_REVERSE;
+}
+
+int blink_attr() {
+  return A_BLINK;
+}
+
+int dim_attr() {
+  return A_DIM;
+}
+
+int bold_attr() {
+  return A_BOLD;
+}
+
+int protected_attr() {
+  return A_PROTECT;
+}
+
+int invisible_attr() {
+  return A_INVIS;
+}
+
+int color_pair_attr(int idx) {
+  return COLOR_PAIR(idx);
+}
+
