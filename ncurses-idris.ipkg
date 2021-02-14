@@ -1,0 +1,4 @@
+package ncurses-idris
+
+modules = NCurses
+
