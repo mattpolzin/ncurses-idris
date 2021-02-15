@@ -62,6 +62,9 @@ prim__move : Int -> Int -> PrimIO ()
 %foreign "C:mvchgat,libcurses"
 prim__mvChangeAt : Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
+%foreign "C:mvwchgat,libcurses"
+prim__mvChangeAtWindow : AnyPtr -> Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
+
 %foreign "C:attrset,libcurses"
 prim__setAttr : Int -> PrimIO ()
 
@@ -251,6 +254,10 @@ data Color = Black
 export
 data ColorPair = MkColorPair Nat
 
+export
+defaultColorPair : ColorPair
+defaultColorPair = MkColorPair 0
+
 getColor : HasIO io => Color -> io Int
 getColor color = case color of
                       Black   => primIO $ prim__blackColor
@@ -272,7 +279,7 @@ getColor color = case color of
 ||| it will use the first available user color pair index of 1.
 export
 initColorPair : HasIO io => Nat -> (fg : Color) -> (bg : Color) -> io ColorPair
-initColorPair idx bg fg = 
+initColorPair idx fg bg = 
   do bgColor <- getColor bg
      fgColor <- getColor fg
      let actualIdx = (S idx)
@@ -326,19 +333,40 @@ nSetAttr' (Win win) attr = do attribute <- getAttribute attr
 
 ||| Change the attributes at the given position in the standard window.
 ||| A len of Nothing means "the whole line."
-||| A color index of 0 means "no color"
+||| A color pair with @defaultColorPair@ offering a sane default.
+|||
+||| See @nChangeAttr'@ to change attributes in another window.
 export
 nChangeAttr : HasIO io 
            => (row : Nat) 
            -> (col : Nat) 
            -> (len : Maybe Nat) 
-           -> (attr : Attribute) 
-           -> (colorIdx : Nat) 
+           -> Attribute 
+           -> ColorPair
            -> io ()
-nChangeAttr row col len attr colorIdx = 
+nChangeAttr row col len attr (MkColorPair colorIdx) = 
   let length = the Int (maybe (-1) cast len)
   in  
       do attribute <- getAttribute attr
          primIO $ 
            prim__mvChangeAt (cast row) (cast col) length attribute (cast colorIdx) prim__getNullAnyPtr
+
+||| Change the attributes at the given position in the given window.
+||| A len of Nothing means "the whole line."
+||| A color pair with @defaultColorPair@ offering a sane default.
+export
+nChangeAttr' : HasIO io 
+            => Window
+            -> (row : Nat) 
+            -> (col : Nat) 
+            -> (len : Maybe Nat) 
+            -> Attribute 
+            -> ColorPair
+            -> io ()
+nChangeAttr' (Win win) row col len attr (MkColorPair colorIdx) = 
+  let length = the Int (maybe (-1) cast len)
+  in  
+      do attribute <- getAttribute attr
+         primIO $ 
+           prim__mvChangeAtWindow win (cast row) (cast col) length attribute (cast colorIdx) prim__getNullAnyPtr
 
