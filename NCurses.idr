@@ -60,7 +60,10 @@ prim__move : Int -> Int -> PrimIO ()
 prim__mvChangeAt : Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
 %foreign "C:attrset,libcurses"
-prim_setAttr : Int -> PrimIO ()
+prim__setAttr : Int -> PrimIO ()
+
+%foreign "C:wattrset,libcurses"
+prim__setAttrWindow : AnyPtr -> Int -> PrimIO ()
 
 %foreign "C:normal_attr,ncurses-idris"
 prim__normalAttr : PrimIO Int
@@ -226,12 +229,22 @@ getAttribute attr = case attr of
                          Invisible => primIO $ prim__invisibleAttr
                          (ColorPair idx) => primIO $ prim__colorPairAttr (cast idx)
 
-||| Set an attribute to be applied to output text
+||| Set an attribute to be applied in the standard window
 ||| until it is cleared or overwritten.
+|||
+||| See @nSetAttr'@ for a version that works on
+||| any given window.
 export
 nSetAttr : HasIO io => Attribute -> io ()
 nSetAttr attr = do attribute <- getAttribute attr
-                   primIO $ prim_setAttr attribute
+                   primIO $ prim__setAttr attribute
+
+||| Set an attribute to be applied in the given window
+||| until it is cleared or overwritten.
+export
+nSetAttr' : HasIO io => Window -> Attribute -> io ()
+nSetAttr' (Win win) attr = do attribute <- getAttribute attr
+                              primIO $ prim__setAttrWindow win attribute
 
 ||| Change the attributes at the given position in the standard window.
 ||| A len of Nothing means "the whole line."
