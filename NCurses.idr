@@ -9,6 +9,9 @@ prim__noEcho : PrimIO ()
 %foreign "C:getch,libncurses"
 prim__getCh : PrimIO Char
 
+%foreign "C:start_color,libncurses"
+prim__startColor : PrimIO ()
+
 %foreign "C:initscr,libncurses"
 prim__initScr : PrimIO ()
 
@@ -95,6 +98,33 @@ prim__invisibleAttr : PrimIO Int
 %foreign "C:color_pair_attr,ncurses-idris"
 prim__colorPairAttr : Int -> PrimIO Int
 
+%foreign "C:black_color,ncurses-idris"
+prim__blackColor : PrimIO Int
+
+%foreign "C:red_color,ncurses-idris"
+prim__redColor : PrimIO Int
+
+%foreign "C:green_color,ncurses-idris"
+prim__greenColor : PrimIO Int
+
+%foreign "C:yellow_color,ncurses-idris"
+prim__yellowColor : PrimIO Int
+
+%foreign "C:blue_color,ncurses-idris"
+prim__blueColor : PrimIO Int
+
+%foreign "C:magenta_color,ncurses-idris"
+prim__magentaColor : PrimIO Int
+
+%foreign "C:cyan_color,ncurses-idris"
+prim__cyanColor : PrimIO Int
+
+%foreign "C:white_color,ncurses-idris"
+prim__whiteColor : PrimIO Int
+
+%foreign "C:init_pair,libncurses"
+prim__initColorPair : Int -> Int -> Int -> PrimIO ()
+
 ||| When you make new windows with @newWindow@
 ||| this data type stores a reference for you
 ||| to use with any function that operates on
@@ -123,6 +153,11 @@ initNCurses = primIO $ prim__initScr
 export
 deinitNCurses : HasIO io => io ()
 deinitNCurses = primIO $ prim__endWin
+
+||| Begin using color mode.
+export
+startColor : HasIO io => io ()
+startColor = primIO $ prim__startColor
 
 ||| Get the default standard ncurses window.
 export
@@ -201,6 +236,49 @@ export
 nPutStrLn' : HasIO io => Window -> (row : Nat) -> String -> io ()
 nPutStrLn' (Win win) row str = primIO $ prim__mvPrintWindow win (cast row) 0 "%s" str
 
+||| The default ncurses colors that can be used in constructing
+||| color pairs.
+public export
+data Color = Black
+           | Red
+           | Green
+           | Yellow
+           | Blue
+           | Magenta
+           | Cyan
+           | White
+
+export
+data ColorPair = MkColorPair Nat
+
+getColor : HasIO io => Color -> io Int
+getColor color = case color of
+                      Black   => primIO $ prim__blackColor
+                      Red     => primIO $ prim__redColor
+                      Green   => primIO $ prim__greenColor
+                      Yellow  => primIO $ prim__yellowColor
+                      Blue    => primIO $ prim__blueColor
+                      Magenta => primIO $ prim__magentaColor
+                      Cyan    => primIO $ prim__cyanColor
+                      White   => primIO $ prim__whiteColor
+               
+||| Create a new color pair. You must tell it the index to create
+||| the color at, which should be a number starting at 0. Some
+||| platforms allow you to redefine a color at a given index but this
+||| is not universally supported.
+|||
+||| You might notice that ncurses expects color indices to start at 1 --
+||| this function increments the index it is given so that passing 0 to
+||| it will use the first available user color pair index of 1.
+export
+initColorPair : HasIO io => Nat -> (fg : Color) -> (bg : Color) -> io ColorPair
+initColorPair idx bg fg = 
+  do bgColor <- getColor bg
+     fgColor <- getColor fg
+     let actualIdx = (S idx)
+     primIO $ prim__initColorPair (cast actualIdx) fgColor bgColor 
+     pure (MkColorPair actualIdx)
+
 ||| Attributes that can be given to text within an ncurses window.
 public export
 data Attribute = Normal
@@ -212,7 +290,7 @@ data Attribute = Normal
                | Bold
                | Protected
                | Invisible
-               | ColorPair Nat
+               | CP ColorPair
 
 ||| Get the Int representation ncurses cares about for a
 ||| particular @Attribute@.
@@ -227,7 +305,7 @@ getAttribute attr = case attr of
                          Bold      => primIO $ prim__boldAttr
                          Protected => primIO $ prim__protectedAttr
                          Invisible => primIO $ prim__invisibleAttr
-                         (ColorPair idx) => primIO $ prim__colorPairAttr (cast idx)
+                         (CP (MkColorPair idx)) => primIO $ prim__colorPairAttr (cast idx)
 
 ||| Set an attribute to be applied in the standard window
 ||| until it is cleared or overwritten.

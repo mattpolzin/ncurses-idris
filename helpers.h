@@ -14,6 +14,15 @@ int dim_attr();
 int bold_attr();
 int protected_attr();
 int invisible_attr();
+
 int color_pair_attr(int idx);
+int black_color();
+int red_color();
+int green_color();
+int yellow_color();
+int blue_color();
+int magenta_color();
+int cyan_color();
+int white_color();
 
 #endif

@@ -46,3 +46,36 @@ int color_pair_attr(int idx) {
   return COLOR_PAIR(idx);
 }
 
+
+int black_color() {
+  return COLOR_BLACK;
+}
+
+int red_color() {
+  return COLOR_RED;
+}
+
+int green_color() {
+  return COLOR_GREEN;
+}
+
+int yellow_color() {
+  return COLOR_YELLOW;
+}
+
+int blue_color() {
+  return COLOR_BLUE;
+}
+
+int magenta_color() {
+  return COLOR_MAGENTA;
+}
+
+int cyan_color() {
+  return COLOR_CYAN;
+}
+
+int white_color() {
+  return COLOR_WHITE;
+}
+
