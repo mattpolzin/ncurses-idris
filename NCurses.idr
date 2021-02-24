@@ -1,10 +1,15 @@
 module NCurses
 
-%foreign "C:cbreak,libcurses"
+%default total
+
+%foreign "C:cbreak,libncurses"
 prim__cBreak : PrimIO ()
 
-%foreign "C:noecho,libcurses"
+%foreign "C:noecho,libncurses"
 prim__noEcho : PrimIO ()
+
+%foreign "C:curs_set,libncurses"
+prim__setCursorVisibility : Int -> PrimIO ()
 
 %foreign "C:getch,libncurses"
 prim__getCh : PrimIO Char
@@ -221,6 +226,18 @@ cBreak = primIO $ prim__cBreak
 export
 noEcho : HasIO io => io ()
 noEcho = primIO $ prim__noEcho
+
+public export 
+data CursorVisibility = CInvisible | CNormal| CHighlyVisible
+
+||| Set the visibility of the cursor.
+export
+setCursorVisibility : HasIO io => CursorVisibility -> io ()
+setCursorVisibility vis = primIO $ prim__setCursorVisibility $
+                                     case vis of
+                                          CInvisible     => 0
+                                          CNormal        => 1
+                                          CHighlyVisible => 2
 
 ||| Move the cursor in the standard window.
 export
