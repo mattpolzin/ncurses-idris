@@ -44,7 +44,7 @@ prim__maxYWindow : AnyPtr -> PrimIO Int
 %foreign "C:refresh,libncurses"
 prim__refresh : PrimIO ()
 
-%foreign "C:wrefresh,libcurses"
+%foreign "C:wrefresh,libncurses"
 prim__refreshWindow : AnyPtr -> PrimIO ()
 
 %foreign "C:clear,libncurses"
