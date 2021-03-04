@@ -11,6 +11,7 @@ ifeq ($(findstring clang,$(CC_VERSION)),clang)
  DYLIB_WORKAROUND = cp "${SHAREDLIB_INSTALLDIR}/${TARGET}" "${SHAREDLIB_INSTALLDIR}/${TARGET}.dylib"
 else
  DYLIB_WORKAROUND = cp "${SHAREDLIB_INSTALLDIR}/${TARGET}" "${SHAREDLIB_INSTALLDIR}/${TARGET}.so"
+ CFLAGS += -fPIC
  LDFLAGS += -fuse-ld=gold
 endif
 
