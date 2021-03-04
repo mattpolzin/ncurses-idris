@@ -1,13 +1,17 @@
 IDRIS := idris2
 SHAREDLIB_INSTALLDIR = `${IDRIS} --libdir`/ncurses-idris/lib
 
-TARGET = ncurses-idris
+TARGET = libncurses-idris
 
 LDFLAGS = -lncurses
 
-DYLIB_WORKAROUND = @echo Skipping Darwin workaround
-ifeq (,$(findstring darwin,$(OSTYPE)))
+CC_VERSION = $(shell $(CC) --version)
+
+ifeq ($(findstring clang,$(CC_VERSION)),clang)
  DYLIB_WORKAROUND = cp "${SHAREDLIB_INSTALLDIR}/${TARGET}" "${SHAREDLIB_INSTALLDIR}/${TARGET}.dylib"
+else
+ DYLIB_WORKAROUND = cp "${SHAREDLIB_INSTALLDIR}/${TARGET}" "${SHAREDLIB_INSTALLDIR}/${TARGET}.so"
+ LDFLAGS += -fuse-ld=gold
 endif
 
 SRCS = $(wildcard *.c)
