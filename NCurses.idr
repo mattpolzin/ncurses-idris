@@ -2,6 +2,12 @@ module NCurses
 
 %default total
 
+libncurses : String -> String
+libncurses fn = "C:" ++ fn ++ ",libncurses"
+
+libhelper : String -> String
+libhelper fn = "C:" ++ fn ++ ",libncurses-idris"
+
 %foreign "C:cbreak,libncurses"
 prim__cBreak : PrimIO ()
 
@@ -23,7 +29,7 @@ prim__initScr : PrimIO ()
 %foreign "C:endwin,libncurses"
 prim__endWin : PrimIO ()
 
-%foreign "C:std_win,ncurses-idris"
+%foreign "C:std_win,libncurses-idris"
 prim__stdWindow : PrimIO AnyPtr
 
 %foreign "C:newwin,libncurses"
@@ -55,79 +61,79 @@ prim__clearWindow : AnyPtr -> PrimIO ()
 |||
 ||| The second to last argument is a format string but
 ||| its best to just always pass strings ("%s").
-%foreign "C:mvprintw,libcurses"
+%foreign "C:mvprintw,libncurses"
 prim__mvPrint : Int -> Int -> String -> String -> PrimIO ()
 
-%foreign "C:mvwprintw,libcurses"
+%foreign "C:mvwprintw,libncurses"
 prim__mvPrintWindow : AnyPtr -> Int -> Int -> String -> String -> PrimIO ()
 
-%foreign "C:move,libcurses"
+%foreign "C:move,libncurses"
 prim__move : Int -> Int -> PrimIO ()
 
-%foreign "C:mvchgat,libcurses"
+%foreign "C:mvchgat,libncurses"
 prim__mvChangeAt : Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
-%foreign "C:mvwchgat,libcurses"
+%foreign "C:mvwchgat,libncurses"
 prim__mvChangeAtWindow : AnyPtr -> Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
-%foreign "C:attrset,libcurses"
+%foreign "C:attrset,libncurses"
 prim__setAttr : Int -> PrimIO ()
 
-%foreign "C:wattrset,libcurses"
+%foreign "C:wattrset,libncurses"
 prim__setAttrWindow : AnyPtr -> Int -> PrimIO ()
 
-%foreign "C:normal_attr,ncurses-idris"
+%foreign "C:normal_attr,libncurses-idris"
 prim__normalAttr : PrimIO Int
 
-%foreign "C:underline_attr,ncurses-idris"
+%foreign "C:underline_attr,libncurses-idris"
 prim__underlineAttr : PrimIO Int
 
-%foreign "C:standout_attr,ncurses-idris"
+%foreign "C:standout_attr,libncurses-idris"
 prim__standoutAttr : PrimIO Int
 
-%foreign "C:reverse_attr,ncurses-idris"
+%foreign "C:reverse_attr,libncurses-idris"
 prim__reverseAttr : PrimIO Int
 
-%foreign "C:blink_attr,ncurses-idris"
+%foreign "C:blink_attr,libncurses-idris"
 prim__blinkAttr : PrimIO Int
 
-%foreign "C:dim_attr,ncurses-idris"
+%foreign "C:dim_attr,libncurses-idris"
 prim__dimAttr : PrimIO Int
 
-%foreign "C:bold_attr,ncurses-idris"
+%foreign "C:bold_attr,libncurses-idris"
 prim__boldAttr : PrimIO Int
 
-%foreign "C:protected_attr,ncurses-idris"
+%foreign "C:protected_attr,libncurses-idris"
 prim__protectedAttr : PrimIO Int
 
-%foreign "C:invisible_attr,ncurses-idris"
+%foreign "C:invisible_attr,libncurses-idris"
 prim__invisibleAttr : PrimIO Int
 
-%foreign "C:color_pair_attr,ncurses-idris"
+%foreign "C:color_pair_attr,libncurses-idris"
 prim__colorPairAttr : Int -> PrimIO Int
 
-%foreign "C:black_color,ncurses-idris"
+%foreign "C:black_color,libncurses-idris"
 prim__blackColor : PrimIO Int
 
-%foreign "C:red_color,ncurses-idris"
+%foreign "C:red_color,libncurses-idris"
 prim__redColor : PrimIO Int
 
-%foreign "C:green_color,ncurses-idris"
+%foreign "C:green_color,libncurses-idris"
 prim__greenColor : PrimIO Int
 
-%foreign "C:yellow_color,ncurses-idris"
+%foreign "C:yellow_color,libncurses-idris"
 prim__yellowColor : PrimIO Int
 
-%foreign "C:blue_color,ncurses-idris"
+%foreign "C:blue_color,libncurses-idris"
 prim__blueColor : PrimIO Int
 
-%foreign "C:magenta_color,ncurses-idris"
+%foreign "C:magenta_color,libncurses-idris"
 prim__magentaColor : PrimIO Int
 
-%foreign "C:cyan_color,ncurses-idris"
+%foreign "C:cyan_color,libncurses-idris"
 prim__cyanColor : PrimIO Int
 
-%foreign "C:white_color,ncurses-idris"
+%foreign "C:white_color,libncurses-idris"
 prim__whiteColor : PrimIO Int
 
 %foreign "C:init_pair,libncurses"
