@@ -1,9 +1,11 @@
 IDRIS := idris2
-SHAREDLIB_INSTALLDIR = `${IDRIS} --libdir`/ncurses-idris/lib
 
 LD_OVERRIDE ?= 
 
 TARGET = libncurses-idris
+TARGET_VERSION ?= 0.0
+
+SHAREDLIB_INSTALLDIR = `${IDRIS} --libdir`/ncurses-idris-${TARGET_VERSION}/lib
 
 LDFLAGS = $(LD_OVERRIDE) -lncurses
 

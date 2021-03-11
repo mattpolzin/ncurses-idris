@@ -1,6 +1,6 @@
 .DS_Store
 build/
-ncurses-idris
+libncurses-idris
 *.o
 *.d
 *.swp*
