@@ -8,49 +8,49 @@ libncurses fn = "C:" ++ fn ++ ",libncurses"
 libhelper : String -> String
 libhelper fn = "C:" ++ fn ++ ",libncurses-idris"
 
-%foreign "C:cbreak,libncurses"
+%foreign libncurses "cbreak"
 prim__cBreak : PrimIO ()
 
-%foreign "C:noecho,libncurses"
+%foreign libncurses "noecho"
 prim__noEcho : PrimIO ()
 
-%foreign "C:curs_set,libncurses"
+%foreign libncurses "curs_set"
 prim__setCursorVisibility : Int -> PrimIO ()
 
-%foreign "C:getch,libncurses"
+%foreign libncurses "getch"
 prim__getCh : PrimIO Char
 
-%foreign "C:start_color,libncurses"
+%foreign libncurses "start_color"
 prim__startColor : PrimIO ()
 
-%foreign "C:initscr,libncurses"
+%foreign libncurses "initscr"
 prim__initScr : PrimIO ()
 
-%foreign "C:endwin,libncurses"
+%foreign libncurses "endwin"
 prim__endWin : PrimIO ()
 
-%foreign "C:std_win,libncurses-idris"
+%foreign libhelper "std_win"
 prim__stdWindow : PrimIO AnyPtr
 
-%foreign "C:newwin,libncurses"
+%foreign libncurses "newwin"
 prim__newWindow : Int -> Int -> Int -> Int -> PrimIO AnyPtr
 
-%foreign "C:getmaxx,libncurses"
+%foreign libncurses "getmaxx"
 prim__maxXWindow : AnyPtr -> PrimIO Int
 
-%foreign "C:getmaxy,libncurses"
+%foreign libncurses "getmaxy"
 prim__maxYWindow : AnyPtr -> PrimIO Int
 
-%foreign "C:refresh,libncurses"
+%foreign libncurses "refresh"
 prim__refresh : PrimIO ()
 
-%foreign "C:wrefresh,libncurses"
+%foreign libncurses "wrefresh"
 prim__refreshWindow : AnyPtr -> PrimIO ()
 
-%foreign "C:clear,libncurses"
+%foreign libncurses "clear"
 prim__clear : PrimIO ()
 
-%foreign "C:wclear,libncurses"
+%foreign libncurses "wclear"
 prim__clearWindow : AnyPtr -> PrimIO ()
 
 ||| move to row and column given and print
@@ -61,82 +61,82 @@ prim__clearWindow : AnyPtr -> PrimIO ()
 |||
 ||| The second to last argument is a format string but
 ||| its best to just always pass strings ("%s").
-%foreign "C:mvprintw,libncurses"
+%foreign libncurses "mvprintw"
 prim__mvPrint : Int -> Int -> String -> String -> PrimIO ()
 
-%foreign "C:mvwprintw,libncurses"
+%foreign libncurses "mvwprintw"
 prim__mvPrintWindow : AnyPtr -> Int -> Int -> String -> String -> PrimIO ()
 
-%foreign "C:move,libncurses"
+%foreign libncurses "move"
 prim__move : Int -> Int -> PrimIO ()
 
-%foreign "C:mvchgat,libncurses"
+%foreign libncurses "mvchgat"
 prim__mvChangeAt : Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
-%foreign "C:mvwchgat,libncurses"
+%foreign libncurses "mvwchgat"
 prim__mvChangeAtWindow : AnyPtr -> Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
-%foreign "C:attrset,libncurses"
+%foreign libncurses "attrset"
 prim__setAttr : Int -> PrimIO ()
 
-%foreign "C:wattrset,libncurses"
+%foreign libncurses "wattrset"
 prim__setAttrWindow : AnyPtr -> Int -> PrimIO ()
 
-%foreign "C:normal_attr,libncurses-idris"
+%foreign libhelper "normal_attr"
 prim__normalAttr : PrimIO Int
 
-%foreign "C:underline_attr,libncurses-idris"
+%foreign libhelper "underline_attr"
 prim__underlineAttr : PrimIO Int
 
-%foreign "C:standout_attr,libncurses-idris"
+%foreign libhelper "standout_attr"
 prim__standoutAttr : PrimIO Int
 
-%foreign "C:reverse_attr,libncurses-idris"
+%foreign libhelper "reverse_attr"
 prim__reverseAttr : PrimIO Int
 
-%foreign "C:blink_attr,libncurses-idris"
+%foreign libhelper "blink_attr"
 prim__blinkAttr : PrimIO Int
 
-%foreign "C:dim_attr,libncurses-idris"
+%foreign libhelper "dim_attr"
 prim__dimAttr : PrimIO Int
 
-%foreign "C:bold_attr,libncurses-idris"
+%foreign libhelper "bold_attr"
 prim__boldAttr : PrimIO Int
 
-%foreign "C:protected_attr,libncurses-idris"
+%foreign libhelper "protected_attr"
 prim__protectedAttr : PrimIO Int
 
-%foreign "C:invisible_attr,libncurses-idris"
+%foreign libhelper "invisible_attr"
 prim__invisibleAttr : PrimIO Int
 
-%foreign "C:color_pair_attr,libncurses-idris"
+%foreign libhelper "color_pair_attr"
 prim__colorPairAttr : Int -> PrimIO Int
 
-%foreign "C:black_color,libncurses-idris"
+%foreign libhelper "black_color"
 prim__blackColor : PrimIO Int
 
-%foreign "C:red_color,libncurses-idris"
+%foreign libhelper "red_color"
 prim__redColor : PrimIO Int
 
-%foreign "C:green_color,libncurses-idris"
+%foreign libhelper "green_color"
 prim__greenColor : PrimIO Int
 
-%foreign "C:yellow_color,libncurses-idris"
+%foreign libhelper "yellow_color"
 prim__yellowColor : PrimIO Int
 
-%foreign "C:blue_color,libncurses-idris"
+%foreign libhelper "blue_color"
 prim__blueColor : PrimIO Int
 
-%foreign "C:magenta_color,libncurses-idris"
+%foreign libhelper "magenta_color"
 prim__magentaColor : PrimIO Int
 
-%foreign "C:cyan_color,libncurses-idris"
+%foreign libhelper "cyan_color"
 prim__cyanColor : PrimIO Int
 
-%foreign "C:white_color,libncurses-idris"
+%foreign libhelper "white_color"
 prim__whiteColor : PrimIO Int
 
-%foreign "C:init_pair,libncurses"
+%foreign libncurses "init_pair"
 prim__initColorPair : Int -> Int -> Int -> PrimIO ()
 
 ||| When you make new windows with @newWindow@
