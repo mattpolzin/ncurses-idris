@@ -46,7 +46,6 @@ int color_pair_attr(int idx) {
   return COLOR_PAIR(idx);
 }
 
-
 int black_color() {
   return COLOR_BLACK;
 }
@@ -77,5 +76,77 @@ int cyan_color() {
 
 int white_color() {
   return COLOR_WHITE;
+}
+
+int keyF0() {
+  return KEY_F0;
+}
+
+int keyF1() {
+  return KEY_F(1);
+}
+
+int keyF2() {
+  return KEY_F(2);
+}
+
+int keyF3() {
+  return KEY_F(3);
+}
+
+int keyF4() {
+  return KEY_F(4);
+}
+
+int keyF5() {
+  return KEY_F(5);
+}
+
+int keyF6() {
+  return KEY_F(6);
+}
+
+int keyF7() {
+  return KEY_F(7);
+}
+
+int keyF8() {
+  return KEY_F(8);
+}
+
+int keyF9() {
+  return KEY_F(9);
+}
+
+int keyF10() {
+  return KEY_F(10);
+}
+
+int keyF11() {
+  return KEY_F(11);
+}
+
+int keyF12() {
+  return KEY_F(12);
+}
+
+int keyUp() {
+  return KEY_UP;
+}
+
+int keyDown() {
+  return KEY_DOWN;
+}
+
+int keyLeft() {
+  return KEY_LEFT;
+}
+
+int keyRight() {
+  return KEY_RIGHT;
+}
+
+int keyBackspace() {
+  return KEY_BACKSPACE;
 }
 

@@ -25,4 +25,23 @@ int magenta_color();
 int cyan_color();
 int white_color();
 
+int keyF0();
+int keyF1();
+int keyF2();
+int keyF3();
+int keyF4();
+int keyF5();
+int keyF6();
+int keyF7();
+int keyF8();
+int keyF9();
+int keyF10();
+int keyF11();
+int keyF12();
+int keyUp();
+int keyDown();
+int keyLeft();
+int keyRight();
+int keyBackspace();
+
 #endif
