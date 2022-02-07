@@ -2,3 +2,5 @@ package ncurses-idris
 
 modules = NCurses
 
+sourcedir = "src"
+
