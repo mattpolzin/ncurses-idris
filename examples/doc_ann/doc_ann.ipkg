@@ -1,0 +1,6 @@
+package doc_ann
+
+depends = contrib, ncurses-idris
+
+executable = "doc_ann"
+main = Main

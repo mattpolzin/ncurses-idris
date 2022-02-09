@@ -17,6 +17,18 @@ prim__setAttr : Int -> PrimIO ()
 %foreign libncurses "wattrset"
 prim__setAttrWindow : AnyPtr -> Int -> PrimIO ()
 
+%foreign libncurses "attroff"
+prim__disableAttr : Int -> PrimIO ()
+
+%foreign libncurses "wattroff"
+prim__disableAttrWindow : AnyPtr -> Int -> PrimIO ()
+
+%foreign libncurses "attron"
+prim__enableAttr : Int -> PrimIO ()
+
+%foreign libncurses "wattron"
+prim__enableAttrWindow : AnyPtr -> Int -> PrimIO ()
+
 %foreign libhelper "normal_attr"
 prim__normalAttr : PrimIO Int
 
@@ -78,6 +90,8 @@ getAttribute attr = case attr of
 ||| Set an attribute to be applied in the standard window
 ||| until it is cleared or overwritten.
 |||
+||| In ncurses terminology, "attrset"
+|||
 ||| See @nSetAttr'@ for a version that works on
 ||| any given window.
 export
@@ -87,14 +101,62 @@ nSetAttr attr = do attribute <- getAttribute attr
 
 ||| Set an attribute to be applied in the given window
 ||| until it is cleared or overwritten.
+|||
+||| In ncurses terminology, "wattrset"
 export
 nSetAttr' : HasIO io => Window -> Attribute -> io ()
 nSetAttr' (Win win) attr = do attribute <- getAttribute attr
                               primIO $ prim__setAttrWindow win attribute
 
+||| Set the given attribute in the standard window
+||| until it is set again. This has no impact
+||| on any other attributes that are set.
+|||
+||| In ncurses terminology, "attron"
+|||
+||| See @nEnableAttr'@ for a version that works on
+||| any given window.
+export
+nEnableAttr : HasIO io => Attribute -> io ()
+nEnableAttr attr = do attribute <- getAttribute attr
+                      primIO $ prim__enableAttr attribute
+
+||| Set the given attribute in the given window
+||| until it is set again. This has no impact
+||| on any other attributes that are set.
+|||
+||| In ncurses terminology, "wattron"
+export
+nEnableAttr' : HasIO io => Window -> Attribute -> io ()
+nEnableAttr' (Win win) attr = do attribute <- getAttribute attr
+                                 primIO $ prim__enableAttrWindow win attribute
+
+||| Unset the given attribute in the standard window
+||| until it is set again. This has no impact
+||| on any other attributes that are set.
+|||
+||| In ncurses terminology, "attroff"
+|||
+||| See @nDisableAttr'@ for a version that works on
+||| any given window.
+export
+nDisableAttr : HasIO io => Attribute -> io ()
+nDisableAttr attr = do attribute <- getAttribute attr
+                       primIO $ prim__disableAttr attribute
+
+||| Unset the given attribute in the given window
+||| until it is set again. This has no impact
+||| on any other attributes that are set.
+|||
+||| In ncurses terminology, "wattroff"
+export
+nDisableAttr' : HasIO io => Window -> Attribute -> io ()
+nDisableAttr' (Win win) attr = do attribute <- getAttribute attr
+                                  primIO $ prim__disableAttrWindow win attribute
+
 ||| Change the attributes at the given position in the standard window.
 ||| A len of Nothing means "the whole line."
-||| A color pair with @defaultColorPair@ offering a sane default.
+||| A color pair of @defaultColorPair@ offers a sane default.
 |||
 ||| See @nChangeAttr'@ to change attributes in another window.
 export
@@ -114,7 +176,7 @@ nChangeAttr row col len attr cp =
 
 ||| Change the attributes at the given position in the given window.
 ||| A len of Nothing means "the whole line."
-||| A color pair with @defaultColorPair@ offering a sane default.
+||| A color pair of @defaultColorPair@ offers a sane default.
 export
 nChangeAttr' : HasIO io 
             => Window

@@ -59,18 +59,35 @@ getColor color = case color of
                
 
 export
-data ColorPair = MkColorPair Nat
+data ColorPair = MkColorPair Nat Color Color
 
 ||| Get the index within ncurses where the given color
 ||| pair can be referenced. In almost all situations, this
 ||| can be left as an implementation detail.
 export
 (.idx) : ColorPair -> Nat
-(.idx) (MkColorPair n) = n
+(.idx) (MkColorPair n f b) = n
 
 export
+(.foreground) : ColorPair -> Color
+(.foreground) (MkColorPair n f b) = f
+
+export
+(.background) : ColorPair -> Color
+(.background) (MkColorPair n f b) = b
+
+||| Get the default color pair. Note that unlike with
+||| user defined colors, the `.foreground` and
+||| `.background` of this color pair are not guaranteed
+||| to be accurate in all terminal environments, but this
+||| color pair will definitely result in the default
+||| when displayed nonetheless.
+|||
+||| The meaning if this color pair is entirely
+||| determined by its `.idx` property.
+export
 defaultColorPair : ColorPair
-defaultColorPair = MkColorPair 0
+defaultColorPair = MkColorPair 0 White Black
 
 ||| Create a new color pair. You must tell it the index to create
 ||| the color at, which should be a number starting at 0. Some
@@ -87,7 +104,7 @@ initColorPair idx fg bg =
      fgColor <- getColor fg
      let actualIdx = (S idx)
      primIO $ prim__initColorPair (cast actualIdx) fgColor bgColor 
-     pure (MkColorPair actualIdx)
+     pure (MkColorPair actualIdx fg bg)
 
 ||| Begin using color mode.
 export
