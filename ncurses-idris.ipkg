@@ -1,4 +1,13 @@
 package ncurses-idris
 
+sourcedir = "src"
+
+depends = contrib -- for PrettyPrint
 modules = NCurses
+        , NCurses.Core
+        , NCurses.Core.Attribute
+        , NCurses.Core.Color
+        , NCurses.Core.Input
+        , NCurses.Core.SpecialKey
+        , Text.PrettyPrint.Prettyprinter.Render.NCurses
 
