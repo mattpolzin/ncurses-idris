@@ -1,8 +1,9 @@
 module Control.NCurses
 
-import Data.List.Elem
 import NCurses
-import Control.TransitionIndexed
+import public Data.List.Elem
+import public NCurses.Core.Color as Color
+import public Control.TransitionIndexed
 import Control.Monad.State
 
 %default total
@@ -19,7 +20,7 @@ public export
 (.active) Inactive = False
 (.active) (Active _) = True
 
-public export
+public export %inline
 initState : CursesState
 initState = Active []
 
@@ -32,7 +33,7 @@ namespace CursesState
   data IsInactive : CursesState -> Type where
     ItIsInactive : IsInactive Inactive
 
-  public export
+  public export %inline
   addColor : (s : CursesState) -> IsActive s => (n : String) -> CursesState
   addColor Inactive @{ItIsActive} n impossible
   addColor (Active colors) n = Active (n :: colors)
@@ -78,6 +79,10 @@ data NCurses : (0 a : Type) -> CursesState -> (0 _ : a -> CursesState) -> Type w
   Clear    : IsActive s => NCurses () s (const s)
   Refresh  : IsActive s => NCurses () s (const s)
   Print    : IsActive s => PrintCmd s -> NCurses () s (const s)
+
+  -- TODO: ideally remove this 'escape hatch' and instead specifically allow
+  --       types of IO that are not supported by NCurses directly (like File IO).
+  NIO : IO a -> NCurses a s (const s)
 
 public export
 TransitionIndexedPointed CursesState NCurses where
@@ -208,6 +213,7 @@ runNCurses DeInit (RActive _) = do
   pure (() ** RInactive)
 runNCurses (AddColor name fg bg) (RActive as) = do
   let nextIdx = length as.colors
+  when (nextIdx == 0) startColor
   cp <- initColorPair nextIdx fg bg
   let as' = { colors $= ((name, cp) ::)
             , csPrf $= (cong (name ::)) } as
@@ -220,6 +226,9 @@ runNCurses Refresh rs = refresh $> (() ** rs)
 runNCurses (Print cmd) rs = do
   rs' <- printNCurses cmd rs
   pure (() ** rs')
+runNCurses (NIO ops) rs = do
+  res <- liftIO ops
+  pure (res ** rs)
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and
