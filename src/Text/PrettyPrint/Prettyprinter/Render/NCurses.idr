@@ -83,21 +83,21 @@ renderNCurses : HasIO io => SimpleDocStream Attribute -> io ()
 renderNCurses = liftIO . evalStateT [] . go
   where
     go : SimpleDocStream Attribute -> AttrState
-    go SEmpty              = pure ()
-    go (SChar ch rest)     = lift (nPutCh ch) *> go rest
-    go (SText _ text rest) = lift (nPutStr text) *> go rest
-    go (SLine i rest)      = do
+    go SEmpty               = pure ()
+    go (SChar ch rest)      = lift (nPutCh ch) *> go rest
+    go (SText _ text rest)  = lift (nPutStr text) *> go rest
+    go (SLine i rest)       = do
       y <- lift $ getYPos
       lift $ nMoveCursor (S y) (cast i)
       go rest
-    go (SAnnPop rest)      = do
+    go (SAnnPop rest)       = do
       (last :: attrs) <- get
         | [] => go rest
       lift $ nDisableAttr last
       put attrs
       go rest
     go (SAnnPush attr rest) = do
-      lift (nEnableAttr attr)
+      lift $ nEnableAttr attr
       modify (attr ::)
       go rest
 

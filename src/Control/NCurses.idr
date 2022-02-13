@@ -60,15 +60,24 @@ namespace Attribute
 
   public export
   data AttrCmd : CursesState -> Type where
-    SetAttr : Attribute s -> AttrCmd s
+    SetAttr     : Attribute s -> AttrCmd s
+    EnableAttr  : Attribute s -> AttrCmd s
+    DisableAttr : Attribute s -> AttrCmd s
 
-namespace Print
+namespace Output
   public export
-  data PrintCmd : CursesState -> Type where
-    PutStr : String -> PrintCmd s
+  record Position where
+    constructor Pos
+    col,row : Nat
+
+  public export
+  data OutputCmd : CursesState -> Type where
+    PutCh  : Char -> OutputCmd s
+    PutStr : String -> OutputCmd s
+    Move   : Position -> OutputCmd s
 
 public export
-data NCurses : (0 a : Type) -> CursesState -> (0 _ : a -> CursesState) -> Type where
+data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   Pure : (x : a) -> NCurses a (fs x) fs
   Bind : NCurses a s1 fs2 -> ((x : a) -> NCurses b (fs2 x) fs3) -> NCurses b s1 fs3
 
@@ -78,7 +87,8 @@ data NCurses : (0 a : Type) -> CursesState -> (0 _ : a -> CursesState) -> Type w
   ModAttr  : IsActive s => AttrCmd s -> NCurses () s (const s)
   Clear    : IsActive s => NCurses () s (const s)
   Refresh  : IsActive s => NCurses () s (const s)
-  Print    : IsActive s => PrintCmd s -> NCurses () s (const s)
+  Output   : IsActive s => OutputCmd s -> NCurses () s (const s)
+  GetPos   : IsActive s => NCurses Position s (const s)
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
   --       types of IO that are not supported by NCurses directly (like File IO).
@@ -91,6 +101,33 @@ TransitionIndexedPointed CursesState NCurses where
 public export
 TransitionIndexedMonad CursesState NCurses where
   bind = Bind
+
+public export
+map : (a -> b) -> NCurses a s (const s) -> NCurses b s (const s)
+map f x = do
+  r <- x
+  pure (f r)
+
+public export
+(<*>) : NCurses (a -> b) s (const s) -> NCurses a s (const s) -> NCurses b s (const s)
+(<*>) x y = do
+  f <- x
+  r <- y
+  pure (f r)
+
+public export
+(*>) : NCurses a s (const s) -> NCurses b s (const s) -> NCurses b s (const s)
+(*>) x y = map (const id) x <*> y
+
+||| Lift an arbitrary IO operation into NCurses.
+||| It's ill-advised to use stdout operations
+||| like `putStr` from `IO` while NCurses is
+||| active -- NCurses offers its own `putStr`
+||| and the standard terminal output will
+||| behave undesirably for the most part.
+public export
+liftIO : IO a -> NCurses a s (const s)
+liftIO = NIO
 
 public export
 init : IsInactive s => NCurses () s (const NCurses.initState)
@@ -108,6 +145,14 @@ public export
 refresh : IsActive s => NCurses () s (const s)
 refresh = Refresh
 
+public export
+getPos : IsActive s => NCurses Position s (const s)
+getPos = GetPos
+
+--
+-- Attribute Commands
+--
+
 ||| Add a color to the current NCurses session.
 |||
 ||| Once added, colors can be referenced by name
@@ -116,20 +161,66 @@ public export
 addColor : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
 addColor = AddColor
 
-||| Set an attribute to be applied in the standard window
-||| until it is cleared or overwritten.
+||| Set the given attribute until it is set again.
+||| This has no impact on any other attributes that are set.
+|||
+||| In ncurses terminology, "attron"
+public export
+enableAttr : IsActive s => Attribute s -> NCurses () s (const s)
+enableAttr = ModAttr . EnableAttr
+
+||| Unset the given attribute until it is set again.
+||| This has no impact on any other attributes that are set.
+|||
+||| In ncurses terminology, "attroff"
+public export
+disableAttr : IsActive s => Attribute s -> NCurses () s (const s)
+disableAttr = ModAttr . DisableAttr
+
+||| Set an attribute to be applied until it is cleared or
+||| overwritten. All other attributes are cleared at the same time.
+||| See @enabledAttr@ to enable an attribute without clearing other
+||| attributes.
+|||
+||| `setAttr Normal` clears all attributes.
 |||
 ||| In ncurses terminology, "attrset"
-|||
-||| See @nSetAttr'@ for a version that works on
-||| any given window.
 public export
 setAttr : IsActive s => Attribute s -> NCurses () s (const s)
 setAttr = ModAttr . SetAttr
 
+||| Set all the given attributes, replacing any existing attributes.
+|||
+||| In ncurses terminology, "attrset"
+public export
+setAttrs : IsActive s => List (Attribute s) -> NCurses () s (const s)
+setAttrs = -- efficiency note: NCurses offers a one-function call to achieve
+           -- this by passing a mask of ORed attributes. We could support
+           -- that here in the future.
+           foldr (\a,nc => nc >> enableAttr a) (setAttr Normal)
+
+--
+-- Output Commands
+--
+
+public export
+putCh : IsActive s => Char -> NCurses () s (const s)
+putCh = Output . PutCh
+
+||| Print a string to the terminal _without_ a trailing newline.
 public export
 putStr : IsActive s => String -> NCurses () s (const s)
-putStr = Print . PutStr
+putStr = Output . PutStr
+
+||| Print a string to the terminal _with_ a trailing newline.
+public export
+putStrLn : IsActive s => String -> NCurses () s (const s)
+putStrLn = Output . PutStr . (++ "\n")
+
+||| Move the cursor.
+public export
+move : IsActive s => Position -> NCurses () s (const s)
+move = Output . Move
 
 testRoutine : NCurses () Inactive (const Inactive)
 testRoutine = TransitionIndexed.Do.do
@@ -187,17 +278,17 @@ modNCursesAttr : HasIO io =>
                  AttrCmd s
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
-modNCursesAttr (SetAttr attr) rs = do
-  nSetAttr (coreAttr rs attr)
-  pure rs
+modNCursesAttr (SetAttr attr) rs     = nSetAttr     (coreAttr rs attr) $> rs
+modNCursesAttr (EnableAttr attr) rs  = nEnableAttr  (coreAttr rs attr) $> rs
+modNCursesAttr (DisableAttr attr) rs = nDisableAttr (coreAttr rs attr) $> rs
 
 printNCurses : HasIO io =>
-               PrintCmd s
+               OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
-printNCurses (PutStr str) rs = do
-  nPutStr str
-  pure rs
+printNCurses (PutStr str) rs   = nPutStr str $> rs
+printNCurses (Move (Pos row col)) rs = nMoveCursor row col $> rs
+printNCurses (PutCh ch) rs     = nPutCh ch $> rs
 
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)
@@ -223,12 +314,13 @@ runNCurses (ModAttr cmd) rs = do
   pure (() ** rs')
 runNCurses Clear   rs = clear $> (() ** rs)
 runNCurses Refresh rs = refresh $> (() ** rs)
-runNCurses (Print cmd) rs = do
+runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure (() ** rs')
 runNCurses (NIO ops) rs = do
   res <- liftIO ops
   pure (res ** rs)
+runNCurses GetPos rs = pure (Pos !(getYPos) !(getXPos) ** rs)
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and
