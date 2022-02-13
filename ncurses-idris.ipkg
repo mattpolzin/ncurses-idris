@@ -5,6 +5,7 @@ version = 0.0.1
 sourcedir = "src"
 
 depends = contrib -- for PrettyPrint
+        , indexed
 modules = NCurses
         , NCurses.Core
         , NCurses.Core.Attribute
