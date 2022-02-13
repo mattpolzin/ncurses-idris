@@ -61,6 +61,11 @@ namespace Attribute
   data AttrCmd : CursesState -> Type where
     SetAttr : Attribute s -> AttrCmd s
 
+namespace Print
+  public export
+  data PrintCmd : CursesState -> Type where
+    PutStr : String -> PrintCmd s
+
 public export
 data NCurses : (0 a : Type) -> CursesState -> (0 _ : a -> CursesState) -> Type where
   Pure : (x : a) -> NCurses a (fs x) fs
@@ -70,6 +75,9 @@ data NCurses : (0 a : Type) -> CursesState -> (0 _ : a -> CursesState) -> Type w
   DeInit   : IsActive s => NCurses () s (const Inactive)
   AddColor : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
   ModAttr  : IsActive s => AttrCmd s -> NCurses () s (const s)
+  Clear    : IsActive s => NCurses () s (const s)
+  Refresh  : IsActive s => NCurses () s (const s)
+  Print    : IsActive s => PrintCmd s -> NCurses () s (const s)
 
 public export
 TransitionIndexedPointed CursesState NCurses where
@@ -88,12 +96,35 @@ deinit : IsActive s => NCurses () s (const Inactive)
 deinit = DeInit
 
 public export
+clear : IsActive s => NCurses () s (const s)
+clear = Clear
+
+public export
+refresh : IsActive s => NCurses () s (const s)
+refresh = Refresh
+
+||| Add a color to the current NCurses session.
+|||
+||| Once added, colors can be referenced by name
+||| when constructing Attributes.
+public export
 addColor : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
 addColor = AddColor
 
+||| Set an attribute to be applied in the standard window
+||| until it is cleared or overwritten.
+|||
+||| In ncurses terminology, "attrset"
+|||
+||| See @nSetAttr'@ for a version that works on
+||| any given window.
 public export
 setAttr : IsActive s => Attribute s -> NCurses () s (const s)
 setAttr = ModAttr . SetAttr
+
+public export
+putStr : IsActive s => String -> NCurses () s (const s)
+putStr = Print . PutStr
 
 testRoutine : NCurses () Inactive (const Inactive)
 testRoutine = TransitionIndexed.Do.do
@@ -101,6 +132,8 @@ testRoutine = TransitionIndexed.Do.do
   addColor "alert" White Red
   setAttr Underline
   setAttr (Color "alert")
+  clear >> refresh
+  putStr "Hello World"
   deinit
 
 --
@@ -153,6 +186,14 @@ modNCursesAttr (SetAttr attr) rs = do
   nSetAttr (coreAttr rs attr)
   pure rs
 
+printNCurses : HasIO io =>
+               PrintCmd s
+            -> RuntimeCurses s
+            -> io (RuntimeCurses s)
+printNCurses (PutStr str) rs = do
+  nPutStr str
+  pure rs
+
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)
 runNCurses (Bind x f) rs = do
@@ -173,6 +214,11 @@ runNCurses (AddColor name fg bg) (RActive as) = do
   pure (() ** RActive as')
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
+  pure (() ** rs')
+runNCurses Clear   rs = clear $> (() ** rs)
+runNCurses Refresh rs = refresh $> (() ** rs)
+runNCurses (Print cmd) rs = do
+  rs' <- printNCurses cmd rs
   pure (() ** rs')
 
 ||| Run an NCurses program with guarantees
