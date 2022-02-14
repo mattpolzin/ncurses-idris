@@ -8,7 +8,7 @@ CC_VERSION = $(shell $(CC) --version)
 ifeq ($(findstring clang,$(CC_VERSION)),clang)
  DYLIB_WORKAROUND = cp "../../libncurses-idris" "${INSTALL_DIR}/lib/libncurses-idris.dylib"
 else
- DYLIB_WORKAROUND = cp "../../libncurses-idris" "${INSTALL_DIR}/lib/libncurses-idirs.so"
+ DYLIB_WORKAROUND = cp "../../libncurses-idris" "${INSTALL_DIR}/lib/libncurses-idris.so"
  CFLAGS += -fPIC
  LDFLAGS += -fuse-ld=gold
 endif
