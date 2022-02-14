@@ -1,13 +1,15 @@
 IDRIS := idris2
 
-NCURSES_VERSION ?=
+NCURSES_VERSION ?=      # system libncurses version
+INDEXED_VERSION = 0.0.5 # indexed Idris package
 
 LD_OVERRIDE ?= 
 
 TARGET = libncurses-idris
 TARGET_VERSION ?= 0
 
-SHAREDLIB_INSTALLDIR = `${IDRIS} --libdir`/ncurses-idris-${TARGET_VERSION}/lib
+PACKAGE_INSTALLDIR = `${IDRIS} --libdir`
+SHAREDLIB_INSTALLDIR = ${PACKAGE_INSTALLDIR}/ncurses-idris-${TARGET_VERSION}/lib
 
 LDFLAGS = $(LD_OVERRIDE) -lncurses
 
@@ -42,9 +44,19 @@ $(TARGET)$(SHLIB_SUFFIX): $(OBJS)
 %.d: %.c
 	@$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
+./depends/indexed-${INDEXED_VERSION}: 
+	mkdir -p ./depends/indexed-${INDEXED_VERSION}
+	mkdir -p ./build/deps
+	cd ./build/deps && \
+		git clone https://github.com/mattpolzin/idris-indexed.git && \
+		cd idris-indexed && \
+		git checkout ${INDEXED_VERSION} && \
+		make && \
+		cp -R ./build/ttc/* ../../../depends/indexed-${INDEXED_VERSION}
+
 .PHONY: package
 
-package:
+package: ./depends/indexed-${INDEXED_VERSION}
 	cd src/NCurses && \
 		$(NCURSES_WORKAROUND) && \
 		cd -
@@ -55,6 +67,7 @@ package:
 clean:
 	rm -f $(OBJS) $(TARGET)$(SHLIB_SUFFIX)
 	rm -rf ./build
+	rm -rf ./depends
 
 cleandep: clean
 	rm -f $(DEPS)
@@ -66,10 +79,12 @@ install:
 	@if ! [ -d $(SHAREDLIB_INSTALLDIR) ]; then mkdir -p $(SHAREDLIB_INSTALLDIR); fi
 	install $(TARGET)$(SHLIB_SUFFIX) $(wildcard *.h) $(SHAREDLIB_INSTALLDIR)
 	$(DYLIB_WORKAROUND)
+	cp -R ./depends/* ${PACKAGE_INSTALLDIR}/
 
 install-with-src:
 	idris2 --install-with-src ncurses-idris.ipkg
 	@if ! [ -d $(SHAREDLIB_INSTALLDIR) ]; then mkdir -p $(SHAREDLIB_INSTALLDIR); fi
 	install $(TARGET)$(SHLIB_SUFFIX) $(wildcard *.h) $(SHAREDLIB_INSTALLDIR)
 	$(DYLIB_WORKAROUND)
+	cp -R ./depends/* ${PACKAGE_INSTALLDIR}/
 
