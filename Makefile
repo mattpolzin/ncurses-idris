@@ -50,6 +50,7 @@ $(TARGET)$(SHLIB_SUFFIX): $(OBJS)
 	cd ./build/deps && \
 		git clone https://github.com/mattpolzin/idris-indexed.git && \
 		cd idris-indexed && \
+		git checkout ${INDEXED_VERSION} && \
 		make && \
 		cp -R ./build/ttc/* ../../../depends/indexed-${INDEXED_VERSION}
 
