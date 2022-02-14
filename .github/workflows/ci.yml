@@ -32,4 +32,11 @@ jobs:
           cd examples/control_curses
           make
           cd -
+      - name: Build and run timed example
+        run: |
+          cd examples/timed
+          make
+          ./build/exec/timed
+          cd -
+
 
