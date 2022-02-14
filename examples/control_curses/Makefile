@@ -22,9 +22,7 @@ all :
 	cd - && \
 	cp -R ../../build/ttc/* ./depends/ncurses-idris-0 && \
 	$(DYLIB_WORKAROUND)
-	$(IDRIS) --build doc_ann.ipkg
-
-.PHONY : clean
+	$(IDRIS) --build control_curses.ipkg
 
 clean :
 	rm -rf ./build

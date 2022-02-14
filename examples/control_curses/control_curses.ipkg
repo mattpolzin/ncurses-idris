@@ -1,0 +1,6 @@
+package control_curses
+
+depends = contrib, indexed, ncurses-idris
+
+executable = "control_curses"
+main = Main
