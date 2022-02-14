@@ -4,7 +4,7 @@ A simple very incomplete package for interfacing with ncurses from Idris 2 using
 ## Dependencies
 Packages:
 - `contrib >= 0.5.1`
-- [`indexed >= 0.0.5`](http://mattpolzin.com/idris-indexed.git)
+- [`indexed >= 0.0.5`](http://github.com/mattpolzin/idris-indexed.git)
 
 System libraries:
 `ncurses >= 5`
