@@ -14,6 +14,7 @@ jobs:
 
     env:
       IDRIS2_CG: chez
+      NCURSES_VERSION: 6
 
     steps:
       - name: Install Dependencies
