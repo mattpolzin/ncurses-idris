@@ -33,11 +33,31 @@ jobs:
           cd examples/control_curses
           make
           cd -
-      - name: Build and run timed example
+      - name: Build timed example
         run: |
           cd examples/timed
           make
-          ./build/exec/timed
+          # I would like to run this here, but it fails in GitHub CI which I assume
+          # is somehow because the terminal can't support ncurses.
+#          ./build/exec/timed
+          # Instead, let's just check for some of the artifacts in the right locations:
+          ldd /build/exec/timed_app/timed.so
+          if [[ ! -d "./depends/ncurses-idris-0/lib" ]]; then
+            echo 'depends or lib dir missing.'
+            exit 1
+          fi
+          if [[ ! -f "./depends/ncurses-idris-0/lib/libncurses-idris.so" ]]; then
+            echo 'libncurses-idris.so missing for depends.'
+            exit 1
+          fi
+          if [[ ! -f "./depends/ncurses-idris-0/NCurses.ttc" ]]; then
+            echo 'TTC files missing.'
+            exit 1
+          fi
+          if [[ ! -f "./build/exec/timed_app/libncurses-idris.so" ]]; then
+            echo 'libncurses-idris.so missing for build dir.'
+            exit 1
+          fi
           cd -
 
 
