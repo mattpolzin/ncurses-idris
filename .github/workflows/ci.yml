@@ -41,7 +41,6 @@ jobs:
           # is somehow because the terminal can't support ncurses.
           # ./build/exec/timed
           # Instead, let's just check for some of the artifacts in the right locations:
-          ldd ./build/exec/timed_app/timed.so
           if [[ ! -d "./depends/ncurses-idris-0/lib" ]]; then
             echo 'depends or lib dir missing.'
             exit 1
