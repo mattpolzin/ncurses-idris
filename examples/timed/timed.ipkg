@@ -1,0 +1,6 @@
+package timed
+
+depends = contrib, ncurses-idris
+
+executable = "timed"
+main = Main
