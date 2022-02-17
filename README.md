@@ -22,7 +22,7 @@ Determining what version you have is system dependent, but once you know, you ca
 NCURSES_VERSION=6 make && make install
 ```
 
-## Use
+## Usage
 This library currently supports relatively low-level access to some but not all NCurses features and
 somewhat more limited support of the same features via a dependently-typed wrapper. See modules under
 `NCurses` for more on low-level access in conjunction with the `Text.PrettyPrint.Prettyprinter.Render.NCurses`
@@ -38,4 +38,46 @@ You can find an example of high-level use (including pretty-printing of `Doc`s) 
 When using low-level access, be sure you `initNCurses` before doing anything else and be sure you cleanup
 with `deinitNCurses` before your program exits.
 
-The following fork by @gallais may pique the interest of anyone looking to experiment with a more Idris-like interface to the underlying NCurses functionality: https://github.com/gallais/ncurses-idris
+The following fork by @gallais may pique the interest of anyone looking to experiment with another high level interface to the underlying NCurses functionality: https://github.com/gallais/ncurses-idris
+
+### Examples
+
+The package currently supports two high level paradigms: procedural commands or declarative printing of documents via `contrib`'s `Prettyprinter`.
+
+#### Procedural
+
+```idris
+main : IO ()
+main = withNCurses $ do
+  init
+  addColor "green" Green Black
+  clear
+  setAttr (Color "green")
+  putStrLn "Hello in green"
+  enableAttr Underline
+  putStrLn "and also underlined"
+  refresh
+  liftIO $ sleep 10
+  deinit
+```
+
+#### Declarative (`Prettyprinter`)
+
+```idris
+prettyDoc : Doc (Attribute (Active ["green"]))
+prettyDoc = color "green" $
+  vsep [ pretty "Hello in green"
+       , underline "and also underlined"
+       ]
+
+main : IO ()
+main = withNCurses $ do
+  init
+  addColor "green" Green Black
+  clear
+  printDoc prettyDoc
+  refresh
+  liftIO $ sleep 10
+  deinit
+```
+
