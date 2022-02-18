@@ -11,7 +11,7 @@ loop =
        (Just SigINT) => pure ()
        _ => (NIO $ sleep 1) >> loop
 
-prettyDoc : Doc (Attribute (Active ["red", "alert", "inverse"]))
+prettyDoc : Doc (Attribute (Active _ ["red", "alert", "inverse"]))
 prettyDoc =
   vsep [ color "red" "-----"
        , pretty "Hello"
