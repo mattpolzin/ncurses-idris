@@ -76,8 +76,8 @@ renderDoc = runConst . evalStateT [] . go
     go (SChar ch rest)      = (lift $ C (putCh ch)) *> go rest
     go (SText _ text rest)  = (lift $ C (putStr text)) *> go rest
     go (SLine i rest)       = do
-      (Pos row col) <- lift $ C getPos
-      lift . C $ move (Pos (S row) (cast i))
+      (MkPosition row col) <- lift $ C getPos
+      lift . C $ move (MkPosition (S row) (cast i))
       go rest
     go (SAnnPop rest)       = do
       (last :: attrs) <- get

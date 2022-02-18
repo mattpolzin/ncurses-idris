@@ -58,6 +58,8 @@ getColor color = case color of
                       White   => primIO $ prim__whiteColor
                
 
+||| Color pairs represent both a foreground and background
+||| color.
 export
 data ColorPair = MkColorPair Nat Color Color
 
