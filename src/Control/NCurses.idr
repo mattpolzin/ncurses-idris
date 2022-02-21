@@ -32,16 +32,18 @@ initInput = MkInput { cBreak = True
 ||| Windows allow a terminal screen to be divided up and drawn to separately
 ||| with their own relative coordinates.
 public export
-record Window where
-  constructor MkWindow
-  identifier : String
+data Window : Type where
   ||| Set to true to receive "special keys" as single values rather than composites
   ||| of two or more Chars. For example, arrow keys are represented as two input
   ||| chars, but you will receive @Key@ values for them instead with the @keypad@
   ||| property turned on.
   |||
   ||| This is off by default.
-  keypad : Bool
+  MkWindow : (identifier : String) -> (keypad : Bool) -> Window
+
+public export
+(.identifier) : NCurses.Window -> String
+(.identifier) (MkWindow i _) = i
 
 public export
 initWindow : String -> NCurses.Window
@@ -156,8 +158,13 @@ namespace Output
 
 namespace Window
   public export
+  data IdentifiesWindow : (0 name : String) -> (0 windows : List NCurses.Window) -> Type where
+    Here : IdentifiesWindow name ((MkWindow name _) :: windows)
+    There : IdentifiesWindow name windows -> IdentifiesWindow name (w :: windows)
+
+  public export
   data HasWindow : (0 name : String) -> CursesState -> Type where
-    ItHasWindow : Elem name (identifer <$> ws) => HasWindow name (Active _ ws w _)
+    ItHasWindow : IdentifiesWindow name ws => HasWindow name (Active _ ws w _)
 
   public export %inline
   0 unsetWindow : (s : CursesState) -> IsActive s => CursesState
@@ -165,18 +172,17 @@ namespace Window
   unsetWindow (Active i ws _ cs) = Active i ws Nothing cs
 
   export
-  0 lookupWindow : (xs : List ty) -> Elem x (map f xs) -> (y ** Elem y xs)
-  lookupWindow [] e = absurd e
-  lookupWindow (y :: xs) Here = (y ** Here)
-  lookupWindow (y :: xs) (There z) =
-    let (q ** r) = lookupWindow xs z
-    in  (q ** There r)
+  0 lookupWindow : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => (w ** Elem w ws)
+  lookupWindow name (MkWindow name k :: windows) @{Here} = ((MkWindow name k) ** Here)
+  lookupWindow name (w :: windows) @{(There elem)} =
+    let (w' ** e) = lookupWindow name windows
+    in  (w' ** There e)
 
   public export %inline
   0 setWindow : (s : CursesState) -> (name : String) -> HasWindow name s => CursesState
   setWindow Inactive name @{ItHasWindow} impossible
   setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
-    Active i ws (Just $ lookupWindow ws elem) cs
+    Active i ws (Just $ lookupWindow name ws) cs
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -399,6 +405,7 @@ testRoutine = TransitionIndexed.Do.do
   putStrLn "back to basics."
   addWindow "win1" (MkPosition 10 10) (MkSize 10 20)
   setWindow "win1"
+  unsetWindow
   deinit
 
 --

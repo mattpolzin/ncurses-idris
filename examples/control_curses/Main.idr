@@ -41,6 +41,7 @@ run = TransitionIndexed.Do.do
   putStrLn "\n\nEnd of initial transmission."
   addWindow "win1" (MkPosition 10 10) (MkSize 10 20)
   setWindow "win1"
+  putStrLn "hello from a window"
   unsetWindow
   -- pretty print
   addColor "red" Red Black
