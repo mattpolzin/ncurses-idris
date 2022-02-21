@@ -7,11 +7,11 @@ import Control.NCurses.Pretty
 
 loop : NCurses () s (const s)
 loop =
-  case !(NIO handleNextCollectedSignal) of
+  case !(liftIO handleNextCollectedSignal) of
        (Just SigINT) => pure ()
-       _ => (NIO $ sleep 1) >> loop
+       _ => (liftIO $ sleep 1) >> loop
 
-prettyDoc : Doc (Attribute (Active _ ["red", "alert", "inverse"]))
+prettyDoc : Doc (Attribute (Active _ _ _ ["red", "alert", "inverse"]))
 prettyDoc =
   vsep [ color "red" "-----"
        , pretty "Hello"
@@ -27,6 +27,8 @@ prettyDoc =
 run : NCurses () Inactive (const Inactive)
 run = TransitionIndexed.Do.do
   init
+  addWindow "main" (MkPosition 0 0) (MkSize 35 45)
+  setWindow "main"
   addColor "inverse" Black White
   addColor "alert" White Red
   clear
@@ -39,6 +41,14 @@ run = TransitionIndexed.Do.do
   putStr "THIS IS NOT A PROBLEM"
   setAttr Normal
   putStrLn "\n\nEnd of initial transmission."
+  addWindow "win1" (MkPosition 35 55) (MkSize 20 30)
+  setWindow "win1"
+  clear
+  setAttr (Color "inverse")
+  putStrLn "hello from a window"
+  setAttr DefaultColors
+  refresh
+  setWindow "main"
   -- pretty print
   addColor "red" Red Black
   printDoc $ prettyDoc
