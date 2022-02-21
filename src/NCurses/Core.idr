@@ -65,6 +65,9 @@ prim__mvPrintWindow : AnyPtr -> Int -> Int -> String -> String -> PrimIO ()
 %foreign libncurses "move"
 prim__move : Int -> Int -> PrimIO ()
 
+%foreign libncurses "wmove"
+prim__moveWindow : AnyPtr -> Int -> Int -> PrimIO ()
+
 %foreign libncurses "initscr"
 prim__initScr : PrimIO ()
 
@@ -184,6 +187,11 @@ nPutStrAt' (Win win) row str = primIO $ prim__mvPrintWindow win (cast row) 0 "%s
 export
 nMoveCursor : HasIO io => (row : Nat) -> (col : Nat) -> io ()
 nMoveCursor row col = primIO $ prim__move (cast row) (cast col)
+
+||| Move the cursor in the given window.
+export
+nMoveCursor' : HasIO io => Window -> (row : Nat) -> (col : Nat) -> io ()
+nMoveCursor' (Win win) row col = primIO $ prim__moveWindow win (cast row) (cast col)
 
 ||| You must call @initNCurses@ before using the other
 ||| ncurses functions and you must call @deinitNCurses@

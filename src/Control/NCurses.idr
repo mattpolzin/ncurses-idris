@@ -9,6 +9,7 @@ import public Data.List.Elem
 import public NCurses.Core.Color as Color
 import public Control.TransitionIndexed
 import Control.Monad.State
+import Data.DPair
 
 %default total
 
@@ -424,6 +425,7 @@ record CursesActive (0 ws : List NCurses.Window) (0 cs : List String) where
   constructor MkCursesActive
   windows : List (String, Core.Window)
   {0 wsPrf : (keys windows) = ((.identifier) <$> ws)}
+  currentWindow : Maybe (Subset (String, Core.Window) (flip Elem windows))
   colors : List (String, ColorPair)
   {0 csPrf : (keys colors) = cs}
 
@@ -439,10 +441,50 @@ getColor (z :: zs) csPrf Here = snd z
 getColor [] csPrf (There elemPrf) impossible
 getColor (z :: zs) csPrf (There elemPrf) = getColor zs (snd $ keysInjective csPrf) elemPrf
 
-getWindow : (windows : List (String, Core.Window))
-         -> (0 wsPrf : NCurses.keys windows = ((.identifier) <$> ws))
-         -> (elemPrf : Elem _ ws)
-         -> Core.Window
+getWindow' : (windows : List (String, Core.Window))
+          -> (0 wsPrf : NCurses.keys windows = ((.identifier) <$> ws))
+          -> (elemPrf : IdentifiesWindow _ ws)
+          -> Subset (String, Core.Window) (flip Elem windows)
+getWindow' (z :: zs) wsPrf Here = Element z Here
+getWindow' [] wsPrf (There elemPrf) impossible
+getWindow' (z :: zs) wsPrf (There elemPrf) = bimap id There $ getWindow' zs (snd $ keysInjective wsPrf) elemPrf
+
+addRuntimeWindow : (name : String)
+                -> (runtimeWin : Core.Window)
+                -> CursesActive ws cs
+                -> CursesActive (initWindow name :: ws) cs
+addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} w colors {csPrf}) =
+  let currentWindow = case w of
+                           Nothing => Nothing
+                           (Just (Element w winsPrf)) => Just $ Element w (There winsPrf) 
+  in
+  MkCursesActive { windows = (identifier, runtimeWin) :: windows
+                 , wsPrf = cong (identifier ::) wsPrf
+                 , currentWindow
+                 , colors
+                 , csPrf
+                 }
+
+addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws cs -> CursesActive ws (name :: cs)
+addRuntimeColor name cp (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
+  MkCursesActive { windows
+                 , wsPrf
+                 , currentWindow
+                 , colors = (name, cp) :: colors
+                 , csPrf  = cong (name ::) csPrf
+                 }
+
+unsetRuntimeWindow : CursesActive ws cs -> CursesActive ws cs
+unsetRuntimeWindow (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) = MkCursesActive windows {wsPrf} Nothing colors {csPrf}
+
+setRuntimeWindow : IdentifiesWindow _ ws -> CursesActive ws cs -> CursesActive ws cs
+setRuntimeWindow elem (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
+  let currentWindow = Just $ getWindow' windows wsPrf elem
+  in  MkCursesActive windows {wsPrf} currentWindow colors {csPrf}
+
+getRuntimeWindow : HasIO io => CursesActive ws cs -> io Core.Window
+getRuntimeWindow (MkCursesActive _ Nothing _) = stdWindow
+getRuntimeWindow (MkCursesActive _ (Just (Element (_, win) _)) _) = pure win
 
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
@@ -457,44 +499,27 @@ coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
+coreAttr (RActive (MkCursesActive _ _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
   let color = getColor colors csPrf elem
   in  CP color
 
 modNCursesAttr : HasIO io =>
+                 IsActive s =>
                  AttrCmd s
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
-modNCursesAttr (SetAttr attr) rs     = nSetAttr     (coreAttr rs attr) $> rs
-modNCursesAttr (EnableAttr attr) rs  = nEnableAttr  (coreAttr rs attr) $> rs
-modNCursesAttr (DisableAttr attr) rs = nDisableAttr (coreAttr rs attr) $> rs
+modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     !(getRuntimeWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  !(getRuntimeWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' !(getRuntimeWindow as) (coreAttr rs attr) $> rs
 
 printNCurses : HasIO io =>
+               IsActive s =>
                OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
-printNCurses (PutStr str) rs   = nPutStr str $> rs
-printNCurses (Move (MkPosition row col)) rs = nMoveCursor row col $> rs
-printNCurses (PutCh ch) rs     = nPutCh ch $> rs
-
-addRuntimeWindow : (name : String)
-                -> (runtimeWin : Core.Window)
-                -> CursesActive ws cs
-                -> CursesActive (initWindow name :: ws) cs
-addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} colors {csPrf}) =
-  MkCursesActive { windows = (identifier, runtimeWin) :: windows
-                 , wsPrf = cong (identifier ::) wsPrf
-                 , colors
-                 , csPrf
-                 }
-
-addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws cs -> CursesActive ws (name :: cs)
-addRuntimeColor name cp (MkCursesActive windows {wsPrf} colors {csPrf}) =
-  MkCursesActive { windows
-                 , wsPrf
-                 , colors = (name, cp) :: colors
-                 , csPrf  = cong (name ::) csPrf
-                 }
+printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' !(getRuntimeWindow as) row col $> rs
+printNCurses (PutStr str) rs@(RActive as)   = nPutStr' !(getRuntimeWindow as) str $> rs
+printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  !(getRuntimeWindow as) ch  $> rs
 
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)
@@ -506,7 +531,7 @@ runNCurses Init RInactive = Prelude.do
   initNCurses
   cBreak
   noEcho
-  pure (() ** RActive $ MkCursesActive [] [] {wsPrf=Refl, csPrf=Refl})
+  pure (() ** RActive $ MkCursesActive [] Nothing [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure (() ** RInactive)
@@ -514,8 +539,8 @@ runNCurses (AddWindow @{isActive} name pos size) (RActive as) = do
   runtimeWin <- newWindow size.rows size.cols pos.row pos.col
   let as' = addRuntimeWindow name runtimeWin as
   pure (() ** RActive as')
-runNCurses (SetWindow @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive as)
-runNCurses UnsetWindow (RActive as) = pure (() ** RActive as)
+runNCurses (SetWindow @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
+runNCurses UnsetWindow (RActive as) = pure (() ** RActive $ unsetRuntimeWindow as)
 runNCurses (AddColor name fg bg) (RActive as) = do
   let nextIdx = length as.colors
   when (nextIdx == 0) startColor
@@ -525,17 +550,19 @@ runNCurses (AddColor name fg bg) (RActive as) = do
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure (() ** rs')
-runNCurses Clear   rs = clear $> (() ** rs)
-runNCurses Refresh rs = refresh $> (() ** rs)
+runNCurses Clear   rs@(RActive as) = clear'   !(getRuntimeWindow as) $> (() ** rs)
+runNCurses Refresh rs@(RActive as) = refresh' !(getRuntimeWindow as) $> (() ** rs)
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure (() ** rs')
 runNCurses (NIO ops) rs = do
   res <- liftIO ops
   pure (res ** rs)
-runNCurses GetPos rs = pure (MkPosition !(getYPos) !(getXPos) ** rs)
-runNCurses GetSize rs = do
-  size <- (uncurry MkSize) <$> getMaxSize' !stdWindow
+runNCurses GetPos rs@(RActive as) = do
+  win <- getRuntimeWindow as
+  pure (MkPosition !(getYPos' win) !(getXPos' win) ** rs)
+runNCurses GetSize rs@(RActive as) = do
+  size <- (uncurry MkSize) <$> getMaxSize' !(getRuntimeWindow as)
   pure (size ** rs)
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> (() ** RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() ** RActive as)
