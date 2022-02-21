@@ -10,6 +10,7 @@ import public NCurses.Core.Color as Color
 import public Control.TransitionIndexed
 import Control.Monad.State
 import Data.DPair
+import Data.List
 
 %default total
 
@@ -66,7 +67,7 @@ data CursesState : Type where
   Inactive : CursesState
   Active : (0 input : InputState)
         -> (0 windows : List NCurses.Window)
-        -> (0 currentWindow : Maybe (w ** Elem w windows))
+        -> (0 currentWindow : (w ** Elem w windows))
         -> (0 colors : List String)
         -> CursesState
 
@@ -77,12 +78,11 @@ public export
 
 public export %inline
 initState : CursesState
-initState = Active initInput [] Nothing []
+initState = Active initInput [initWindow "default"] (initWindow "default" ** Here) []
 
 public export %inline
-0 bumpWindow : Maybe (DPair NCurses.Window (\w => Elem w ws)) -> Maybe (DPair NCurses.Window (\w => Elem w (y :: ws)))
-bumpWindow Nothing = Nothing
-bumpWindow (Just (q ** r)) = Just (q ** There r)
+0 bumpWindow : DPair NCurses.Window (\w => Elem w ws) -> DPair NCurses.Window (\w => Elem w (y :: ws))
+bumpWindow (q ** r) = (q ** There r)
 
 namespace CursesState
   public export
@@ -168,9 +168,8 @@ namespace Window
     ItHasWindow : IdentifiesWindow name ws => HasWindow name (Active _ ws w _)
 
   public export %inline
-  0 unsetWindow : (s : CursesState) -> IsActive s => CursesState
-  unsetWindow Inactive @{ItIsActive} impossible
-  unsetWindow (Active i ws _ cs) = Active i ws Nothing cs
+  defaultWindow : String
+  defaultWindow = "default"
 
   export
   0 lookupWindow : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => (w ** Elem w ws)
@@ -180,10 +179,15 @@ namespace Window
     in  (w' ** There e)
 
   public export %inline
+  0 unsetWindow : (s : CursesState) -> IsActive s => HasWindow Window.defaultWindow s => CursesState
+  unsetWindow Inactive @{ItIsActive} impossible
+  unsetWindow (Active i ws _ cs) @{_} @{ItHasWindow @{elem}} = Active i ws (lookupWindow defaultWindow ws) cs
+
+  public export %inline
   0 setWindow : (s : CursesState) -> (name : String) -> HasWindow name s => CursesState
   setWindow Inactive name @{ItHasWindow} impossible
   setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
-    Active i ws (Just $ lookupWindow name ws) cs
+    Active i ws (lookupWindow name ws) cs
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -194,7 +198,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   DeInit      : IsActive s => NCurses () s (const Inactive)
   AddWindow   : IsActive s => (name : String) -> Position -> Size -> NCurses () s (const (addWindow s name))
   SetWindow   : IsActive s => (name : String) -> HasWindow name s => NCurses () s (const (setWindow s name))
-  UnsetWindow : IsActive s => NCurses () s (const (unsetWindow s))
+  UnsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (const (unsetWindow s))
   AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
   ModAttr     : IsActive s => AttrCmd s -> NCurses () s (const s)
   Clear       : IsActive s => NCurses () s (const s)
@@ -270,7 +274,7 @@ setWindow : IsActive s => (name : String) -> HasWindow name s => NCurses () s (c
 setWindow = SetWindow
 
 public export
-unsetWindow : IsActive s => NCurses () s (const (unsetWindow s))
+unsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (const (unsetWindow s))
 unsetWindow = UnsetWindow
 
 ||| Clear the screen of the current window.
@@ -425,7 +429,8 @@ record CursesActive (0 ws : List NCurses.Window) (0 cs : List String) where
   constructor MkCursesActive
   windows : List (String, Core.Window)
   {0 wsPrf : (keys windows) = ((.identifier) <$> ws)}
-  currentWindow : Maybe (Subset (String, Core.Window) (flip Elem windows))
+  defaultWin : IdentifiesWindow Window.defaultWindow ws
+  currentWindow : (Subset (String, Core.Window) (flip Elem windows))
   colors : List (String, ColorPair)
   {0 csPrf : (keys colors) = cs}
 
@@ -453,38 +458,37 @@ addRuntimeWindow : (name : String)
                 -> (runtimeWin : Core.Window)
                 -> CursesActive ws cs
                 -> CursesActive (initWindow name :: ws) cs
-addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} w colors {csPrf}) =
-  let currentWindow = case w of
-                           Nothing => Nothing
-                           (Just (Element w winsPrf)) => Just $ Element w (There winsPrf) 
-  in
+addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} defaultWin (Element w winsPrf) colors {csPrf}) =
   MkCursesActive { windows = (identifier, runtimeWin) :: windows
                  , wsPrf = cong (identifier ::) wsPrf
-                 , currentWindow
+                 , defaultWin = There defaultWin
+                 , currentWindow = Element w (There winsPrf)
                  , colors
                  , csPrf
                  }
 
 addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws cs -> CursesActive ws (name :: cs)
-addRuntimeColor name cp (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
+addRuntimeColor name cp (MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}) =
   MkCursesActive { windows
                  , wsPrf
+                 , defaultWin
                  , currentWindow
                  , colors = (name, cp) :: colors
                  , csPrf  = cong (name ::) csPrf
                  }
 
 unsetRuntimeWindow : CursesActive ws cs -> CursesActive ws cs
-unsetRuntimeWindow (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) = MkCursesActive windows {wsPrf} Nothing colors {csPrf}
+unsetRuntimeWindow (MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}) =
+  let defaultWindow = getWindow' windows wsPrf defaultWin
+  in  MkCursesActive windows {wsPrf} defaultWin defaultWindow colors {csPrf}
 
 setRuntimeWindow : IdentifiesWindow _ ws -> CursesActive ws cs -> CursesActive ws cs
-setRuntimeWindow elem (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
-  let currentWindow = Just $ getWindow' windows wsPrf elem
-  in  MkCursesActive windows {wsPrf} currentWindow colors {csPrf}
+setRuntimeWindow elem (MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}) =
+  let currentWindow = getWindow' windows wsPrf elem
+  in  MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}
 
-getRuntimeWindow : HasIO io => CursesActive ws cs -> io Core.Window
-getRuntimeWindow (MkCursesActive _ Nothing _) = stdWindow
-getRuntimeWindow (MkCursesActive _ (Just (Element (_, win) _)) _) = pure win
+getRuntimeWindow : CursesActive ws cs -> Core.Window
+getRuntimeWindow (MkCursesActive _ _ (Element (_, win) _) _) = win
 
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
@@ -499,7 +503,7 @@ coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive _ _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
+coreAttr (RActive (MkCursesActive _ _ _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
   let color = getColor colors csPrf elem
   in  CP color
 
@@ -508,18 +512,18 @@ modNCursesAttr : HasIO io =>
                  AttrCmd s
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
-modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     !(getRuntimeWindow as) (coreAttr rs attr) $> rs
-modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  !(getRuntimeWindow as) (coreAttr rs attr) $> rs
-modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' !(getRuntimeWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     (getRuntimeWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  (getRuntimeWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' (getRuntimeWindow as) (coreAttr rs attr) $> rs
 
 printNCurses : HasIO io =>
                IsActive s =>
                OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
-printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' !(getRuntimeWindow as) row col $> rs
-printNCurses (PutStr str) rs@(RActive as)   = nPutStr' !(getRuntimeWindow as) str $> rs
-printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  !(getRuntimeWindow as) ch  $> rs
+printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' (getRuntimeWindow as) row col $> rs
+printNCurses (PutStr str) rs@(RActive as)   = nPutStr' (getRuntimeWindow as) str $> rs
+printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getRuntimeWindow as) ch  $> rs
 
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)
@@ -531,7 +535,8 @@ runNCurses Init RInactive = Prelude.do
   initNCurses
   cBreak
   noEcho
-  pure (() ** RActive $ MkCursesActive [] Nothing [] {wsPrf=Refl, csPrf=Refl})
+  win <- stdWindow
+  pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, win)] Here (Element (Window.defaultWindow, win) Here) [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure (() ** RInactive)
@@ -539,8 +544,8 @@ runNCurses (AddWindow @{isActive} name pos size) (RActive as) = do
   runtimeWin <- newWindow size.rows size.cols pos.row pos.col
   let as' = addRuntimeWindow name runtimeWin as
   pure (() ** RActive as')
-runNCurses (SetWindow @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
-runNCurses UnsetWindow (RActive as) = pure (() ** RActive $ unsetRuntimeWindow as)
+runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
+runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ unsetRuntimeWindow as)
 runNCurses (AddColor name fg bg) (RActive as) = do
   let nextIdx = length as.colors
   when (nextIdx == 0) startColor
@@ -550,8 +555,8 @@ runNCurses (AddColor name fg bg) (RActive as) = do
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure (() ** rs')
-runNCurses Clear   rs@(RActive as) = clear'   !(getRuntimeWindow as) $> (() ** rs)
-runNCurses Refresh rs@(RActive as) = refresh' !(getRuntimeWindow as) $> (() ** rs)
+runNCurses Clear   rs@(RActive as) = clear'   (getRuntimeWindow as) $> (() ** rs)
+runNCurses Refresh rs@(RActive as) = refresh' (getRuntimeWindow as) $> (() ** rs)
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure (() ** rs')
@@ -559,10 +564,10 @@ runNCurses (NIO ops) rs = do
   res <- liftIO ops
   pure (res ** rs)
 runNCurses GetPos rs@(RActive as) = do
-  win <- getRuntimeWindow as
+  let win = getRuntimeWindow as
   pure (MkPosition !(getYPos' win) !(getXPos' win) ** rs)
 runNCurses GetSize rs@(RActive as) = do
-  size <- (uncurry MkSize) <$> getMaxSize' !(getRuntimeWindow as)
+  size <- (uncurry MkSize) <$> getMaxSize' (getRuntimeWindow as)
   pure (size ** rs)
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> (() ** RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() ** RActive as)
