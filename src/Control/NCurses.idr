@@ -1,6 +1,10 @@
 module Control.NCurses
 
-import NCurses
+import NCurses.Core
+import NCurses.Core.Color
+import NCurses.Core.Attribute
+import NCurses.Core.SpecialKey
+import NCurses.Core.Input
 import public Data.List.Elem
 import public NCurses.Core.Color as Color
 import public Control.TransitionIndexed
@@ -25,52 +29,93 @@ initInput = MkInput { cBreak = True
                     , echo = False
                     }
 
+||| Windows allow a terminal screen to be divided up and drawn to separately
+||| with their own relative coordinates.
+public export
+record Window where
+  constructor MkWindow
+  identifier : String
+  ||| Set to true to receive "special keys" as single values rather than composites
+  ||| of two or more Chars. For example, arrow keys are represented as two input
+  ||| chars, but you will receive @Key@ values for them instead with the @keypad@
+  ||| property turned on.
+  |||
+  ||| This is off by default.
+  keypad : Bool
+
+public export
+initWindow : String -> NCurses.Window
+initWindow id = MkWindow { identifier = id
+                         , keypad = False
+                         }
+
 ||| The state of NCurses.
+||| When active:
+||| The `input` is the state of input that applies universally.
+||| The `windows` are the currently available windows in the session, excluding
+|||   the default (or standard) window which is always available.
+||| The `currentWindow` is the window to be used for input & output. If Nothing,
+|||   the default window is used.
+||| The `colors` are the currently available colors in the session.
 ||| TODO: parameterize on Eq type to use as color id? Eq a => (colors : List a)
 public export
 data CursesState : Type where
   Inactive : CursesState
-  Active : (0 input : InputState) -> (0 colors : List String) -> CursesState
+  Active : (0 input : InputState)
+        -> (0 windows : List NCurses.Window)
+        -> (0 currentWindow : Maybe (w ** Elem w windows))
+        -> (0 colors : List String)
+        -> CursesState
 
 public export
 (.active) : CursesState -> Bool
 (.active) Inactive = False
-(.active) (Active _ _) = True
+(.active) (Active _ _ _ _) = True
 
 public export %inline
 initState : CursesState
-initState = Active initInput []
+initState = Active initInput [] Nothing []
+
+public export %inline
+0 bumpWindow : Maybe (DPair NCurses.Window (\w => Elem w ws)) -> Maybe (DPair NCurses.Window (\w => Elem w (y :: ws)))
+bumpWindow Nothing = Nothing
+bumpWindow (Just (q ** r)) = Just (q ** There r)
 
 namespace CursesState
   public export
   data IsActive : CursesState -> Type where
-    ItIsActive : IsActive (Active _ _)
+    ItIsActive : IsActive (Active _ _ _ _)
 
   public export
   data IsInactive : CursesState -> Type where
     ItIsInactive : IsInactive Inactive
 
   public export %inline
-  addColor : (s : CursesState) -> IsActive s => (n : String) -> CursesState
+  0 addWindow : (s : CursesState) -> IsActive s => (name : String) ->  CursesState
+  addWindow Inactive @{ItIsActive} n impossible
+  addWindow (Active i ws w cs) n = Active i (initWindow n :: ws) (bumpWindow w) cs
+
+  public export %inline
+  0 addColor : (s : CursesState) -> IsActive s => (n : String) -> CursesState
   addColor Inactive @{ItIsActive} n impossible
-  addColor (Active i colors) n = Active i (n :: colors)
+  addColor (Active i ws w cs) n = Active i ws w (n :: cs)
 
   public export %inline
-  setEcho : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
+  0 setEcho : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
   setEcho Inactive @{ItIsActive} on impossible
-  setEcho (Active input cs) on = Active ({ echo := on } input) cs
+  setEcho (Active input ws w cs) on = Active ({ echo := on } input) ws w cs
 
   public export %inline
-  setCBreak : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
+  0 setCBreak : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
   setCBreak Inactive @{ItIsActive} on impossible
-  setCBreak (Active input cs) on = Active ({ cBreak := on } input) cs
+  setCBreak (Active input ws w cs) on = Active ({ cBreak := on } input) ws w cs
 
 namespace Attribute
   ||| Proof that the given color exists in the current
   ||| NCurses session.
   public export
   data HasColor : (0 name : String) -> CursesState -> Type where
-    ItHasColor : Elem name cs => HasColor name (Active i cs)
+    ItHasColor : Elem name cs => HasColor name (Active _ ws w cs)
 
   public export
   data Attribute : CursesState -> Type where
@@ -109,22 +154,50 @@ namespace Output
     PutStr : String -> OutputCmd s
     Move   : Position -> OutputCmd s
 
-public export
+namespace Window
+  public export
+  data HasWindow : (0 name : String) -> CursesState -> Type where
+    ItHasWindow : Elem name (identifer <$> ws) => HasWindow name (Active _ ws w _)
+
+  public export %inline
+  0 unsetWindow : (s : CursesState) -> IsActive s => CursesState
+  unsetWindow Inactive @{ItIsActive} impossible
+  unsetWindow (Active i ws _ cs) = Active i ws Nothing cs
+
+  export
+  0 lookupWindow : (xs : List ty) -> Elem x (map f xs) -> (y ** Elem y xs)
+  lookupWindow [] e = absurd e
+  lookupWindow (y :: xs) Here = (y ** Here)
+  lookupWindow (y :: xs) (There z) =
+    let (q ** r) = lookupWindow xs z
+    in  (q ** There r)
+
+  public export %inline
+  0 setWindow : (s : CursesState) -> (name : String) -> HasWindow name s => CursesState
+  setWindow Inactive name @{ItHasWindow} impossible
+  setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
+    Active i ws (Just $ lookupWindow ws elem) cs
+
+export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   Pure : (x : a) -> NCurses a (fs x) fs
   Bind : NCurses a s1 fs2 -> ((x : a) -> NCurses b (fs2 x) fs3) -> NCurses b s1 fs3
 
-  Init      : IsInactive s => NCurses () s (const NCurses.initState)
-  DeInit    : IsActive s => NCurses () s (const Inactive)
-  AddColor  : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
-  ModAttr   : IsActive s => AttrCmd s -> NCurses () s (const s)
-  Clear     : IsActive s => NCurses () s (const s)
-  Refresh   : IsActive s => NCurses () s (const s)
-  Output    : IsActive s => OutputCmd s -> NCurses () s (const s)
-  SetEcho   : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
-  SetCBreak : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
-  GetPos    : IsActive s => NCurses Position s (const s)
-  GetSize   : IsActive s => NCurses Size s (const s)
+  Init        : IsInactive s => NCurses () s (const NCurses.initState)
+  DeInit      : IsActive s => NCurses () s (const Inactive)
+  AddWindow   : IsActive s => (name : String) -> Position -> Size -> NCurses () s (const (addWindow s name))
+  SetWindow   : IsActive s => (name : String) -> HasWindow name s => NCurses () s (const (setWindow s name))
+  UnsetWindow : IsActive s => NCurses () s (const (unsetWindow s))
+  AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
+  ModAttr     : IsActive s => AttrCmd s -> NCurses () s (const s)
+  Clear       : IsActive s => NCurses () s (const s)
+  Refresh     : IsActive s => NCurses () s (const s)
+  Output      : IsActive s => OutputCmd s -> NCurses () s (const s)
+  SetEcho     : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
+  SetCBreak   : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
+  SetCursor   : IsActive s => CursorVisibility -> NCurses () s (const s)
+  GetPos      : IsActive s => NCurses Position s (const s)
+  GetSize     : IsActive s => NCurses Size s (const s)
 --   GetCh    : IsActive s => NCurses Char s (const s)
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
@@ -176,6 +249,22 @@ init = Init
 public export
 deinit : IsActive s => NCurses () s (const Inactive)
 deinit = DeInit
+
+||| Add a window to the NCurses session.
+||| You get a default window encompassing the whole terminal screen, but
+||| adding windows gives finer control over clearing of parts of the screen,
+||| printing with coordinates relative to the smaller windows, etc.
+public export
+addWindow : IsActive s => (name : String) -> Position -> Size -> NCurses () s (const (addWindow s name))
+addWindow = AddWindow
+
+public export
+setWindow : IsActive s => (name : String) -> HasWindow name s => NCurses () s (const (setWindow s name))
+setWindow = SetWindow
+
+public export
+unsetWindow : IsActive s => NCurses () s (const (unsetWindow s))
+unsetWindow = UnsetWindow
 
 ||| Clear the screen of the current window.
 public export
@@ -278,13 +367,21 @@ move = Output . Move
 ||| cBreak indicates whether characters typed by the user are delivered to the
 ||| program (via @getCh@) immediately or not. If not, they are delivered when a
 ||| newline is typed (the default behavior for most terminal environments).
+|||
+||| This setting affects all windows.
 setCBreak : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
 setCBreak = SetCBreak
 
 ||| echo indicates whether characters typed by the user are printed to the screen
 ||| by NCurses as well as delivered to @getCh@.
+|||
+||| This setting affects all windows.
 setEcho : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
 setEcho = SetEcho
+
+||| Set the way the cursor is displayed to the user.
+setCursor : IsActive s => CursorVisibility -> NCurses () s (const s)
+setCursor = SetCursor
 
 --
 -- Test Routine
@@ -300,6 +397,8 @@ testRoutine = TransitionIndexed.Do.do
   putStr "Hello World"
   setAttr DefaultColors
   putStrLn "back to basics."
+  addWindow "win1" (MkPosition 10 10) (MkSize 10 20)
+  setWindow "win1"
   deinit
 
 --
@@ -314,19 +413,29 @@ keys ((x, y) :: xs) = x :: keys xs
 keysInjective : {0 x : _} -> keys (x :: xs) = (y :: ys) -> (Builtin.fst x = y, NCurses.keys xs = ys)
 keysInjective {x = (w, z)} Refl = (Refl, Refl)
 
-record CursesActive (0 cs : List String) where
+record CursesActive (0 ws : List NCurses.Window) (0 cs : List String) where
   constructor MkCursesActive
+  windows : List (String, Core.Window)
+  {0 wsPrf : (keys windows) = ((.identifier) <$> ws)}
   colors : List (String, ColorPair)
   {0 csPrf : (keys colors) = cs}
 
 data RuntimeCurses : CursesState -> Type where
   RInactive : RuntimeCurses Inactive
-  RActive   : CursesActive cs -> RuntimeCurses (Active i cs)
+  RActive   : CursesActive ws cs -> RuntimeCurses (Active i ws w cs)
 
-getColor : (colors : List (String, ColorPair)) -> (0 csPrf : NCurses.keys colors = names) -> (elemPrf : Elem _ names) -> ColorPair
+getColor : (colors : List (String, ColorPair))
+        -> (0 csPrf : NCurses.keys colors = names)
+        -> (elemPrf : Elem _ names)
+        -> ColorPair
 getColor (z :: zs) csPrf Here = snd z
 getColor [] csPrf (There elemPrf) impossible
 getColor (z :: zs) csPrf (There elemPrf) = getColor zs (snd $ keysInjective csPrf) elemPrf
+
+getWindow : (windows : List (String, Core.Window))
+         -> (0 wsPrf : NCurses.keys windows = ((.identifier) <$> ws))
+         -> (elemPrf : Elem _ ws)
+         -> Core.Window
 
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
@@ -341,7 +450,7 @@ coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
+coreAttr (RActive (MkCursesActive _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
   let color = getColor colors csPrf elem
   in  CP color
 
@@ -361,6 +470,25 @@ printNCurses (PutStr str) rs   = nPutStr str $> rs
 printNCurses (Move (MkPosition row col)) rs = nMoveCursor row col $> rs
 printNCurses (PutCh ch) rs     = nPutCh ch $> rs
 
+addRuntimeWindow : (name : String)
+                -> (runtimeWin : Core.Window)
+                -> CursesActive ws cs
+                -> CursesActive (initWindow name :: ws) cs
+addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} colors {csPrf}) =
+  MkCursesActive { windows = (identifier, runtimeWin) :: windows
+                 , wsPrf = cong (identifier ::) wsPrf
+                 , colors
+                 , csPrf
+                 }
+
+addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws cs -> CursesActive ws (name :: cs)
+addRuntimeColor name cp (MkCursesActive windows {wsPrf} colors {csPrf}) =
+  MkCursesActive { windows
+                 , wsPrf
+                 , colors = (name, cp) :: colors
+                 , csPrf  = cong (name ::) csPrf
+                 }
+
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)
 runNCurses (Bind x f) rs = do
@@ -371,16 +499,21 @@ runNCurses Init RInactive = Prelude.do
   initNCurses
   cBreak
   noEcho
-  pure (() ** RActive $ MkCursesActive [] {csPrf=Refl})
+  pure (() ** RActive $ MkCursesActive [] [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure (() ** RInactive)
+runNCurses (AddWindow @{isActive} name pos size) (RActive as) = do
+  runtimeWin <- newWindow size.rows size.cols pos.row pos.col
+  let as' = addRuntimeWindow name runtimeWin as
+  pure (() ** RActive as')
+runNCurses (SetWindow @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive as)
+runNCurses UnsetWindow (RActive as) = pure (() ** RActive as)
 runNCurses (AddColor name fg bg) (RActive as) = do
   let nextIdx = length as.colors
   when (nextIdx == 0) startColor
   cp <- initColorPair nextIdx fg bg
-  let as' = { colors $= ((name, cp) ::)
-            , csPrf $= (cong (name ::)) } as
+  let as' = addRuntimeColor name cp as
   pure (() ** RActive as')
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
@@ -399,6 +532,7 @@ runNCurses GetSize rs = do
   pure (size ** rs)
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> (() ** RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() ** RActive as)
+runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and
