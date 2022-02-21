@@ -40,7 +40,7 @@ data Window : Type where
   ||| chars, but you will receive @Key@ values for them instead with the @keypad@
   ||| property turned on.
   |||
-  ||| This is off by default.
+  ||| This is on by default.
   MkWindow : (identifier : String) -> (keypad : Bool) -> Window
 
 public export
@@ -50,7 +50,7 @@ public export
 public export
 initWindow : String -> NCurses.Window
 initWindow id = MkWindow { identifier = id
-                         , keypad = False
+                         , keypad = True
                          }
 
 ||| The state of NCurses.
@@ -535,6 +535,7 @@ runNCurses Init RInactive = Prelude.do
   initNCurses
   cBreak
   noEcho
+  keypad True
   win <- stdWindow
   pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, win)] Here (Element (Window.defaultWindow, win) Here) [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
@@ -542,6 +543,7 @@ runNCurses DeInit (RActive _) = do
   pure (() ** RInactive)
 runNCurses (AddWindow @{isActive} name pos size) (RActive as) = do
   runtimeWin <- newWindow size.rows size.cols pos.row pos.col
+  keypad' runtimeWin True
   let as' = addRuntimeWindow name runtimeWin as
   pure (() ** RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
