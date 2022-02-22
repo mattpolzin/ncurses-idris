@@ -44,8 +44,20 @@ data Window : Type where
   MkWindow : (identifier : String) -> (keypad : Bool) -> Window
 
 public export
+identifier : NCurses.Window -> String
+identifier (MkWindow i _) = i
+
+public export
 (.identifier) : NCurses.Window -> String
-(.identifier) (MkWindow i _) = i
+(.identifier) = identifier
+
+public export
+setKeypad : (on : Bool) -> NCurses.Window -> NCurses.Window
+setKeypad on (MkWindow i _) = MkWindow i on
+
+public export
+newKeypadSameIdentity : (on : Bool) -> (w : NCurses.Window) -> (identifier w) === (identifier (setKeypad on w))
+newKeypadSameIdentity on (MkWindow identifier keypad) = Refl
 
 public export
 initWindow : String -> NCurses.Window
@@ -95,23 +107,37 @@ namespace CursesState
 
   public export %inline
   0 addWindow : (s : CursesState) -> IsActive s => (name : String) ->  CursesState
-  addWindow Inactive @{ItIsActive} n impossible
+  addWindow Inactive @{ItIsActive} _ impossible
   addWindow (Active i ws w cs) n = Active i (initWindow n :: ws) (bumpWindow w) cs
 
   public export %inline
   0 addColor : (s : CursesState) -> IsActive s => (n : String) -> CursesState
-  addColor Inactive @{ItIsActive} n impossible
+  addColor Inactive @{ItIsActive} _ impossible
   addColor (Active i ws w cs) n = Active i ws w (n :: cs)
 
   public export %inline
   0 setEcho : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
-  setEcho Inactive @{ItIsActive} on impossible
+  setEcho Inactive @{ItIsActive} _ impossible
   setEcho (Active input ws w cs) on = Active ({ echo := on } input) ws w cs
 
   public export %inline
   0 setCBreak : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
-  setCBreak Inactive @{ItIsActive} on impossible
+  setCBreak Inactive @{ItIsActive} _ impossible
   setCBreak (Active input ws w cs) on = Active ({ cBreak := on } input) ws w cs
+
+  public export %inline
+  0 swapKeypad : (on : Bool) -> (ws : List NCurses.Window) -> Elem y ws -> (ws' : List NCurses.Window ** (Elem (setKeypad on y) ws', (NCurses.identifier <$> ws) === (NCurses.identifier <$> ws')))
+  swapKeypad on (y :: xs) Here = (setKeypad on y :: xs ** (Here, rewrite sym $ newKeypadSameIdentity on y in Refl))
+  swapKeypad on (y :: xs) (There e) = bimap (y ::) (bimap There (cong (identifier y ::))) $ swapKeypad on xs e
+
+  public export %inline
+  0 replaceWindow : {w' : NCurses.Window} -> InputState -> List String -> (ws' ** Elem w' ws') -> CursesState
+  replaceWindow i cs (ws ** elem) = Active i ws (_ ** elem) cs
+
+  public export %inline
+  0 setKeypad : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
+  setKeypad Inactive @{ItIsActive} _ impossible
+  setKeypad (Active input ws w cs) on = replaceWindow input cs $ bimap id fst (swapKeypad on ws (snd w))
 
 namespace Attribute
   ||| Proof that the given color exists in the current
@@ -207,6 +233,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   SetEcho     : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
   SetCBreak   : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s (const s)
+  SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
   GetPos      : IsActive s => NCurses Position s (const s)
   GetSize     : IsActive s => NCurses Size s (const s)
 --   GetCh    : IsActive s => NCurses Char s (const s)
@@ -261,6 +288,10 @@ public export
 deinit : IsActive s => NCurses () s (const Inactive)
 deinit = DeInit
 
+--
+-- Window Commands
+--
+
 ||| Add a window to the NCurses session.
 ||| You get a default window encompassing the whole terminal screen, but
 ||| adding windows gives finer control over clearing of parts of the screen,
@@ -301,98 +332,119 @@ getSize = GetSize
 -- Attribute Commands
 --
 
-||| Add a color to the current NCurses session.
-|||
-||| Once added, colors can be referenced by name
-||| when constructing Attributes.
-public export
-addColor : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
-addColor = AddColor
+namespace Attribute
+  ||| Add a color to the current NCurses session.
+  |||
+  ||| Once added, colors can be referenced by name
+  ||| when constructing Attributes.
+  public export
+  addColor : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
+  addColor = AddColor
 
-||| Set the given attribute until it is set again.
-||| This has no impact on any other attributes that are set.
-|||
-||| In ncurses terminology, "attron"
-public export
-enableAttr : IsActive s => Attribute s -> NCurses () s (const s)
-enableAttr = ModAttr . EnableAttr
+  ||| Set the given attribute until it is set again.
+  ||| This has no impact on any other attributes that are set.
+  |||
+  ||| In ncurses terminology, "attron"
+  public export
+  enableAttr : IsActive s => Attribute s -> NCurses () s (const s)
+  enableAttr = ModAttr . EnableAttr
 
-||| Unset the given attribute until it is set again.
-||| This has no impact on any other attributes that are set.
-|||
-||| In ncurses terminology, "attroff"
-public export
-disableAttr : IsActive s => Attribute s -> NCurses () s (const s)
-disableAttr = ModAttr . DisableAttr
+  ||| Unset the given attribute until it is set again.
+  ||| This has no impact on any other attributes that are set.
+  |||
+  ||| In ncurses terminology, "attroff"
+  public export
+  disableAttr : IsActive s => Attribute s -> NCurses () s (const s)
+  disableAttr = ModAttr . DisableAttr
 
-||| Set an attribute to be applied until it is cleared or
-||| overwritten. All other attributes are cleared at the same time.
-||| See @enabledAttr@ to enable an attribute without clearing other
-||| attributes.
-|||
-||| `setAttr Normal` clears all attributes.
-|||
-||| In ncurses terminology, "attrset"
-public export
-setAttr : IsActive s => Attribute s -> NCurses () s (const s)
-setAttr = ModAttr . SetAttr
+  ||| Set an attribute to be applied until it is cleared or
+  ||| overwritten. All other attributes are cleared at the same time.
+  ||| See @enabledAttr@ to enable an attribute without clearing other
+  ||| attributes.
+  |||
+  ||| `setAttr Normal` clears all attributes.
+  |||
+  ||| In ncurses terminology, "attrset"
+  public export
+  setAttr : IsActive s => Attribute s -> NCurses () s (const s)
+  setAttr = ModAttr . SetAttr
 
-||| Set all the given attributes, replacing any existing attributes.
-|||
-||| In ncurses terminology, "attrset"
-public export
-setAttrs : IsActive s => List (Attribute s) -> NCurses () s (const s)
-setAttrs = -- efficiency note: NCurses offers a one-function call to achieve
-           -- this by passing a mask of ORed attributes. We could support
-           -- that here in the future.
-           foldr (\a,nc => nc >> enableAttr a) (setAttr Normal)
+  ||| Set all the given attributes, replacing any existing attributes.
+  |||
+  ||| In ncurses terminology, "attrset"
+  public export
+  setAttrs : IsActive s => List (Attribute s) -> NCurses () s (const s)
+  setAttrs = -- efficiency note: NCurses offers a one-function call to achieve
+             -- this by passing a mask of ORed attributes. We could support
+             -- that here in the future.
+             foldr (\a,nc => nc >> enableAttr a) (setAttr Normal)
 
 --
 -- Output Commands
 --
 
-||| Print a character to the terminal.
-public export
-putCh : IsActive s => Char -> NCurses () s (const s)
-putCh = Output . PutCh
+namespace Output
+  ||| Print a character to the terminal.
+  public export
+  putCh : IsActive s => Char -> NCurses () s (const s)
+  putCh = Output . PutCh
 
-||| Print a string to the terminal _without_ a trailing newline.
-public export
-putStr : IsActive s => String -> NCurses () s (const s)
-putStr = Output . PutStr
+  ||| Print a string to the terminal _without_ a trailing newline.
+  public export
+  putStr : IsActive s => String -> NCurses () s (const s)
+  putStr = Output . PutStr
 
-||| Print a string to the terminal _with_ a trailing newline.
-public export
-putStrLn : IsActive s => String -> NCurses () s (const s)
-putStrLn = Output . PutStr . (++ "\n")
+  ||| Print a string to the terminal _with_ a trailing newline.
+  public export
+  putStrLn : IsActive s => String -> NCurses () s (const s)
+  putStrLn = Output . PutStr . (++ "\n")
 
-||| Move the cursor.
-public export
-move : IsActive s => Position -> NCurses () s (const s)
-move = Output . Move
+  ||| Move the cursor.
+  public export
+  move : IsActive s => Position -> NCurses () s (const s)
+  move = Output . Move
 
 --
 -- Input Commands
 --
 
-||| cBreak indicates whether characters typed by the user are delivered to the
-||| program (via @getCh@) immediately or not. If not, they are delivered when a
-||| newline is typed (the default behavior for most terminal environments).
-|||
-||| This setting affects all windows.
-setCBreak : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
-setCBreak = SetCBreak
+namespace Input
+  ||| cBreak indicates whether characters typed by the user are delivered to the
+  ||| program (via @getCh@) immediately or not. If not, they are delivered when a
+  ||| newline is typed (the default behavior for most terminal environments).
+  |||
+  ||| This setting affects all windows.
+  public export
+  setCBreak : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
+  setCBreak = SetCBreak
 
-||| echo indicates whether characters typed by the user are printed to the screen
-||| by NCurses as well as delivered to @getCh@.
-|||
-||| This setting affects all windows.
-setEcho : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
-setEcho = SetEcho
+  ||| echo indicates whether characters typed by the user are printed to the screen
+  ||| by NCurses as well as delivered to @getCh@.
+  |||
+  ||| This setting affects all windows.
+  public export
+  setEcho : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
+  setEcho = SetEcho
 
-||| Set the way the cursor is displayed to the user.
-setCursor : IsActive s => CursorVisibility -> NCurses () s (const s)
-setCursor = SetCursor
+  ||| Turn "keypad" on or off.
+  |||
+  ||| This property is set independently for each window. This method only sets the
+  ||| property for the current window.
+  |||
+  ||| Set to true to receive "special keys" as single values rather than composites
+  ||| of two or more Chars. For example, arrow keys are represented as two input
+  ||| chars, but you will receive @Key@ values for them instead with the @keypad@
+  ||| property turned on.
+  |||
+  ||| This is on by default.
+  public export
+  setKeypad : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
+  setKeypad = SetKeypad
+
+  ||| Set the way the cursor is displayed to the user.
+  public export
+  setCursor : IsActive s => CursorVisibility -> NCurses () s (const s)
+  setCursor = SetCursor
 
 --
 -- Test Routine
@@ -429,7 +481,6 @@ record CursesActive (0 ws : List NCurses.Window) (0 cs : List String) where
   constructor MkCursesActive
   windows : List (String, Core.Window)
   {0 wsPrf : (keys windows) = ((.identifier) <$> ws)}
-  defaultWin : IdentifiesWindow Window.defaultWindow ws
   currentWindow : (Subset (String, Core.Window) (flip Elem windows))
   colors : List (String, ColorPair)
   {0 csPrf : (keys colors) = cs}
@@ -458,37 +509,41 @@ addRuntimeWindow : (name : String)
                 -> (runtimeWin : Core.Window)
                 -> CursesActive ws cs
                 -> CursesActive (initWindow name :: ws) cs
-addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} defaultWin (Element w winsPrf) colors {csPrf}) =
+addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} (Element w winsPrf) colors {csPrf}) =
   MkCursesActive { windows = (identifier, runtimeWin) :: windows
                  , wsPrf = cong (identifier ::) wsPrf
-                 , defaultWin = There defaultWin
                  , currentWindow = Element w (There winsPrf)
                  , colors
                  , csPrf
                  }
 
 addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws cs -> CursesActive ws (name :: cs)
-addRuntimeColor name cp (MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}) =
+addRuntimeColor name cp (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
   MkCursesActive { windows
                  , wsPrf
-                 , defaultWin
                  , currentWindow
                  , colors = (name, cp) :: colors
                  , csPrf  = cong (name ::) csPrf
                  }
 
-unsetRuntimeWindow : CursesActive ws cs -> CursesActive ws cs
-unsetRuntimeWindow (MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}) =
-  let defaultWindow = getWindow' windows wsPrf defaultWin
-  in  MkCursesActive windows {wsPrf} defaultWin defaultWindow colors {csPrf}
-
 setRuntimeWindow : IdentifiesWindow _ ws -> CursesActive ws cs -> CursesActive ws cs
-setRuntimeWindow elem (MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}) =
+setRuntimeWindow elem (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
   let currentWindow = getWindow' windows wsPrf elem
-  in  MkCursesActive windows {wsPrf} defaultWin currentWindow colors {csPrf}
+  in  MkCursesActive windows {wsPrf} currentWindow colors {csPrf}
 
 getRuntimeWindow : CursesActive ws cs -> Core.Window
-getRuntimeWindow (MkCursesActive _ _ (Element (_, win) _) _) = win
+getRuntimeWindow (MkCursesActive _ (Element (_, win) _) _) = win
+
+setRuntimeKeypad : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setKeypad (Active i ws w cs) on)
+setRuntimeKeypad on (RActive (MkCursesActive windows {wsPrf} currentWindow colors {csPrf})) with 0 (swapKeypad on ws (snd w))
+  setRuntimeKeypad on (RActive (MkCursesActive windows {wsPrf = wsPrf} currentWindow colors {csPrf = csPrf})) | (ws' ** swapKeypadPrf) =
+    RActive $
+      MkCursesActive { windows
+                     , wsPrf = rewrite sym $ snd swapKeypadPrf in wsPrf
+                     , currentWindow
+                     , colors
+                     , csPrf
+                     }
 
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
@@ -503,7 +558,7 @@ coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive _ _ _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
+coreAttr (RActive (MkCursesActive _ _ colors {csPrf})) (Color name @{ItHasColor @{elem}}) =
   let color = getColor colors csPrf elem
   in  CP color
 
@@ -537,7 +592,7 @@ runNCurses Init RInactive = Prelude.do
   noEcho
   keypad True
   win <- stdWindow
-  pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, win)] Here (Element (Window.defaultWindow, win) Here) [] {wsPrf=Refl, csPrf=Refl})
+  pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, win)] (Element (Window.defaultWindow, win) Here) [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure (() ** RInactive)
@@ -547,7 +602,7 @@ runNCurses (AddWindow @{isActive} name pos size) (RActive as) = do
   let as' = addRuntimeWindow name runtimeWin as
   pure (() ** RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
-runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ unsetRuntimeWindow as)
+runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
 runNCurses (AddColor name fg bg) (RActive as) = do
   let nextIdx = length as.colors
   when (nextIdx == 0) startColor
@@ -573,6 +628,7 @@ runNCurses GetSize rs@(RActive as) = do
   pure (size ** rs)
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> (() ** RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() ** RActive as)
+runNCurses (SetKeypad on) (RActive as) = keypad' (getRuntimeWindow as) on $> (() ** setRuntimeKeypad on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
 
 ||| Run an NCurses program with guarantees
