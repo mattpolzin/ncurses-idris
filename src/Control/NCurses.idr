@@ -27,25 +27,30 @@ record InputState where
 
 public export
 initInput : InputState
-initInput = MkInput { cBreak = True
-                    , echo = False
+initInput = MkInput { cBreak  = True
+                    , echo    = False
                     }
 
 ||| Windows allow a terminal screen to be divided up and drawn to separately
 ||| with their own relative coordinates.
 public export
 data Window : Type where
+  ||| The `keypad` parameter controls whether special keys are supported as single
+  ||| inputs.
   ||| Set to true to receive "special keys" as single values rather than composites
   ||| of two or more Chars. For example, arrow keys are represented as two input
   ||| chars, but you will receive @Key@ values for them instead with the @keypad@
   ||| property turned on.
-  |||
   ||| This is on by default.
-  MkWindow : (identifier : String) -> (keypad : Bool) -> Window
+  |||
+  ||| The `noDelay` parameter controls whether @getCh@ is blocking or not.
+  ||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
+  ||| returns immediately and returns @Nothing@ if the user has not input anything.
+  MkWindow : (identifier : String) -> (keypad : Bool) -> (noDelay : Bool) -> Window
 
 public export
 identifier : NCurses.Window -> String
-identifier (MkWindow i _) = i
+identifier (MkWindow i _ _) = i
 
 public export
 (.identifier) : NCurses.Window -> String
@@ -53,16 +58,25 @@ public export
 
 public export
 setKeypad : (on : Bool) -> NCurses.Window -> NCurses.Window
-setKeypad on (MkWindow i _) = MkWindow i on
+setKeypad on (MkWindow i _ d) = MkWindow i on d
 
 public export
 newKeypadSameIdentity : (on : Bool) -> (w : NCurses.Window) -> (identifier w) === (identifier (setKeypad on w))
-newKeypadSameIdentity on (MkWindow identifier keypad) = Refl
+newKeypadSameIdentity on (MkWindow identifier keypad noDelay) = Refl
+
+public export
+setNoDelay : (on : Bool) -> NCurses.Window -> NCurses.Window
+setNoDelay on (MkWindow i k _) = MkWindow i k on
+
+public export
+newNoDelaySameIdentity : (on : Bool) -> (w : NCurses.Window) -> (identifier w) === (identifier (setNoDelay on w))
+newNoDelaySameIdentity on (MkWindow identifier keypad noDelay) = Refl
 
 public export
 initWindow : String -> NCurses.Window
 initWindow id = MkWindow { identifier = id
                          , keypad = True
+                         , noDelay = False
                          }
 
 ||| The state of NCurses.
@@ -131,6 +145,11 @@ namespace CursesState
   swapKeypad on (y :: xs) (There e) = bimap (y ::) (bimap There (cong (identifier y ::))) $ swapKeypad on xs e
 
   public export %inline
+  0 swapNoDelay : (on : Bool) -> (ws : List NCurses.Window) -> Elem y ws -> (ws' : List NCurses.Window ** (Elem (setNoDelay on y) ws', (NCurses.identifier <$> ws) === (NCurses.identifier <$> ws')))
+  swapNoDelay on (y :: xs) Here = (setNoDelay on y :: xs ** (Here, rewrite sym $ newNoDelaySameIdentity on y in Refl))
+  swapNoDelay on (y :: xs) (There e) = bimap (y ::) (bimap There (cong (identifier y ::))) $ swapNoDelay on xs e
+
+  public export %inline
   0 replaceWindow : {w' : NCurses.Window} -> InputState -> List String -> (ws' ** Elem w' ws') -> CursesState
   replaceWindow i cs (ws ** elem) = Active i ws (_ ** elem) cs
 
@@ -138,6 +157,11 @@ namespace CursesState
   0 setKeypad : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
   setKeypad Inactive @{ItIsActive} _ impossible
   setKeypad (Active input ws w cs) on = replaceWindow input cs $ bimap id fst (swapKeypad on ws (snd w))
+
+  public export %inline
+  0 setNoDelay : (s : CursesState) -> IsActive s => (on : Bool) -> CursesState
+  setNoDelay Inactive @{ItIsActive} _ impossible
+  setNoDelay (Active input ws w cs) on = replaceWindow input cs $ bimap id fst (swapNoDelay on ws (snd w))
 
 namespace Attribute
   ||| Proof that the given color exists in the current
@@ -186,7 +210,7 @@ namespace Output
 namespace Window
   public export
   data IdentifiesWindow : (0 name : String) -> (0 windows : List NCurses.Window) -> Type where
-    Here : IdentifiesWindow name ((MkWindow name _) :: windows)
+    Here : IdentifiesWindow name ((MkWindow name _ _) :: windows)
     There : IdentifiesWindow name windows -> IdentifiesWindow name (w :: windows)
 
   public export
@@ -199,7 +223,7 @@ namespace Window
 
   export
   0 lookupWindow : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => (w ** Elem w ws)
-  lookupWindow name (MkWindow name k :: windows) @{Here} = ((MkWindow name k) ** Here)
+  lookupWindow name (MkWindow name k d :: windows) @{Here} = ((MkWindow name k d) ** Here)
   lookupWindow name (w :: windows) @{(There elem)} =
     let (w' ** e) = lookupWindow name windows
     in  (w' ** There e)
@@ -214,6 +238,13 @@ namespace Window
   setWindow Inactive name @{ItHasWindow} impossible
   setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
     Active i ws (lookupWindow name ws) cs
+
+public export
+0 GetNext : (s : CursesState) -> IsActive s => Type
+GetNext Inactive @{ItIsActive} impossible
+GetNext (Active (MkInput _ _) _ ((MkWindow _ keypad noDelay) ** _) _) =
+  ifThenElse noDelay id Maybe $
+    ifThenElse keypad Key Char
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -232,6 +263,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   Output      : IsActive s => OutputCmd s -> NCurses () s (const s)
   SetEcho     : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
   SetCBreak   : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
+  SetNoDelay  : IsActive s => (on : Bool) -> NCurses () s (const (setNoDelay s on))
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s (const s)
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
   GetPos      : IsActive s => NCurses Position s (const s)
@@ -545,6 +577,17 @@ setRuntimeKeypad on (RActive (MkCursesActive windows {wsPrf} currentWindow color
                      , csPrf
                      }
 
+setRuntimeNoDelay : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setNoDelay (Active i ws w cs) on)
+setRuntimeNoDelay on (RActive (MkCursesActive windows {wsPrf} currentWindow colors {csPrf})) with 0 (swapNoDelay on ws (snd w))
+  setRuntimeNoDelay on (RActive (MkCursesActive windows {wsPrf = wsPrf} currentWindow colors {csPrf = csPrf})) | (ws' ** swapNoDelayPrf) =
+    RActive $
+      MkCursesActive { windows
+                     , wsPrf = rewrite sym $ snd swapNoDelayPrf in wsPrf
+                     , currentWindow
+                     , colors
+                     , csPrf
+                     }
+
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
 coreAttr : RuntimeCurses s -> Attribute s -> Attribute
@@ -591,14 +634,16 @@ runNCurses Init RInactive = Prelude.do
   cBreak
   noEcho
   keypad True
+  noDelay False
   win <- stdWindow
   pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, win)] (Element (Window.defaultWindow, win) Here) [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure (() ** RInactive)
-runNCurses (AddWindow @{isActive} name pos size) (RActive as) = do
+runNCurses (AddWindow @{isActive} name pos size) (RActive as) = Prelude.do
   runtimeWin <- newWindow size.rows size.cols pos.row pos.col
   keypad' runtimeWin True
+  noDelay' runtimeWin False
   let as' = addRuntimeWindow name runtimeWin as
   pure (() ** RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
@@ -629,6 +674,7 @@ runNCurses GetSize rs@(RActive as) = do
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> (() ** RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() ** RActive as)
 runNCurses (SetKeypad on) (RActive as) = keypad' (getRuntimeWindow as) on $> (() ** setRuntimeKeypad on $ RActive as)
+runNCurses (SetNoDelay on) (RActive as) = noDelay' (getRuntimeWindow as) on $> (() ** setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
 
 ||| Run an NCurses program with guarantees

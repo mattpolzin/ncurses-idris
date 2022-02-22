@@ -14,6 +14,9 @@ prim__echo : PrimIO ()
 %foreign libncurses "noecho"
 prim__noEcho : PrimIO ()
 
+%foreign libncurses "nodelay"
+prim__noDelay : AnyPtr -> Bool -> PrimIO ()
+
 %foreign libncurses "getch"
 prim__getCh : PrimIO Char
 
@@ -49,6 +52,20 @@ echo = primIO $ prim__echo
 export
 noEcho : HasIO io => io ()
 noEcho = primIO $ prim__noEcho
+
+||| @noDelay'@ controls whether @getCh@ is blocking or not.
+||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
+||| returns immediately and returns @Nothing@ if the user has not input anything.
+export
+noDelay' : HasIO io => Window -> Bool -> io ()
+noDelay' (Win win) on = primIO $ prim__noDelay win on
+
+||| @noDelay@ controls whether @getCh@ is blocking or not.
+||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
+||| returns immediately and returns @Nothing@ if the user has not input anything.
+export
+noDelay : HasIO io => Bool -> io ()
+noDelay on = noDelay' !stdWindow on
 
 ||| Get a single character. 
 |||
