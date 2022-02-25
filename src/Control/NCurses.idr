@@ -11,6 +11,7 @@ import public Control.TransitionIndexed
 import Control.Monad.State
 import Data.DPair
 import Data.List
+import Decidable.Equality
 
 %default total
 
@@ -221,30 +222,54 @@ namespace Window
   defaultWindow : String
   defaultWindow = "default"
 
-  export
-  0 lookupWindow : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => (w ** Elem w ws)
-  lookupWindow name (MkWindow name k d :: windows) @{Here} = ((MkWindow name k d) ** Here)
+  -- TODO: now that I know the problem way below was just not deconstructing far enough, lookupWindow and
+  --       lookupWindowPrf _can_ be recombined to (w ** Elem w ws)
+  public export
+  0 lookupWindow : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => NCurses.Window
+  lookupWindow name (MkWindow name k d :: windows) @{Here} = (MkWindow name k d)
   lookupWindow name (w :: windows) @{(There elem)} =
-    let (w' ** e) = lookupWindow name windows
-    in  (w' ** There e)
+    lookupWindow name windows
+
+  public export
+  0 lookupWindowPrf : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => Elem (lookupWindow name ws) ws
+  lookupWindowPrf name (MkWindow name _ _ :: windows) @{Here} = Here
+  lookupWindowPrf name ((MkWindow identifier keypad noDelay) :: ws') @{(There e)} = There (lookupWindowPrf name ws')
 
   public export %inline
   0 unsetWindow : (s : CursesState) -> IsActive s => HasWindow Window.defaultWindow s => CursesState
-  unsetWindow Inactive @{ItIsActive} impossible
-  unsetWindow (Active i ws _ cs) @{_} @{ItHasWindow @{elem}} = Active i ws (lookupWindow defaultWindow ws) cs
+  unsetWindow (Active i ws _ cs) @{_} @{ItHasWindow @{elem}} = Active i ws (lookupWindow defaultWindow ws ** lookupWindowPrf defaultWindow ws) cs
 
   public export %inline
   0 setWindow : (s : CursesState) -> (name : String) -> HasWindow name s => CursesState
-  setWindow Inactive name @{ItHasWindow} impossible
   setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
-    Active i ws (lookupWindow name ws) cs
+    Active i ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
+
+-- public export
+-- 0 (.keypad) : (s : CursesState) -> IsActive s => Bool
+-- (.keypad) (Active _ _ ((MkWindow _ keypad _) ** _) _) = keypad
+-- 
+-- public export
+-- 0 (.noDelay) : (s : CursesState) -> IsActive s => Bool
+-- (.noDelay) (Active _ _ ((MkWindow _ _ noDelay) ** _) _) = noDelay
 
 public export
-0 GetNext : (s : CursesState) -> IsActive s => Type
-GetNext Inactive @{ItIsActive} impossible
-GetNext (Active (MkInput _ _) _ ((MkWindow _ keypad noDelay) ** _) _) =
-  ifThenElse noDelay id Maybe $
-    ifThenElse keypad Key Char
+data InTy = IChar | IKeyOrChar
+
+public export
+data In = IMaybe InTy | IYes InTy
+
+public export
+0 NextIn : (w : NCurses.Window) -> In
+NextIn (MkWindow identifier keypad noDelay) =
+  ifThenElse noDelay IMaybe IYes $
+    ifThenElse keypad IKeyOrChar IChar
+
+public export
+0 GetNext : In -> Type
+GetNext (IMaybe IChar) = Maybe Char
+GetNext (IMaybe IKeyOrChar) = Maybe (Either Key Char)
+GetNext (IYes IChar) = Char
+GetNext (IYes IKeyOrChar) = Either Key Char
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -268,7 +293,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
   GetPos      : IsActive s => NCurses Position s (const s)
   GetSize     : IsActive s => NCurses Size s (const s)
---   GetCh    : IsActive s => NCurses Char s (const s)
+  GetCh       : NCurses (GetNext $ NextIn (fst w)) (Active i ws w cs) (const (Active i ws w cs))
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
   --       types of IO that are not supported by NCurses directly (like File IO).
@@ -509,17 +534,30 @@ keys ((x, y) :: xs) = x :: keys xs
 keysInjective : {0 x : _} -> keys (x :: xs) = (y :: ys) -> (Builtin.fst x = y, NCurses.keys xs = ys)
 keysInjective {x = (w, z)} Refl = (Refl, Refl)
 
-record CursesActive (0 ws : List NCurses.Window) (0 cs : List String) where
+record RuntimeWindow where
+  constructor MkRuntimeWindow
+  props : NCurses.Window
+  win : Core.Window
+
+initRuntimeWindow : String -> Core.Window -> RuntimeWindow
+initRuntimeWindow name win = MkRuntimeWindow (initWindow name) win
+
+data RuntimeWindows : List NCurses.Window -> Type where
+  Nil : RuntimeWindows []
+  (::) : (rw : RuntimeWindow) -> RuntimeWindows ws -> RuntimeWindows (rw.props :: ws)
+
+-- TODO: all of these erased proofs are probably suitable for Subset
+record CursesActive (0 ws : List NCurses.Window) (0 w : (w' ** Elem w' ws)) (0 cs : List String) where
   constructor MkCursesActive
-  windows : List (String, Core.Window)
-  {0 wsPrf : (keys windows) = ((.identifier) <$> ws)}
-  currentWindow : (Subset (String, Core.Window) (flip Elem windows))
+  windows : RuntimeWindows ws
+  currentWindow : RuntimeWindow
+  {0 wPrf : currentWindow.props = w.fst}
   colors : List (String, ColorPair)
   {0 csPrf : (keys colors) = cs}
 
 data RuntimeCurses : CursesState -> Type where
   RInactive : RuntimeCurses Inactive
-  RActive   : CursesActive ws cs -> RuntimeCurses (Active i ws w cs)
+  RActive   : CursesActive ws w cs -> RuntimeCurses (Active i ws w cs)
 
 getColor : (colors : List (String, ColorPair))
         -> (0 csPrf : NCurses.keys colors = names)
@@ -529,54 +567,66 @@ getColor (z :: zs) csPrf Here = snd z
 getColor [] csPrf (There elemPrf) impossible
 getColor (z :: zs) csPrf (There elemPrf) = getColor zs (snd $ keysInjective csPrf) elemPrf
 
-getWindow' : (windows : List (String, Core.Window))
-          -> (0 wsPrf : NCurses.keys windows = ((.identifier) <$> ws))
-          -> (elemPrf : IdentifiesWindow _ ws)
-          -> Subset (String, Core.Window) (flip Elem windows)
-getWindow' (z :: zs) wsPrf Here = Element z Here
-getWindow' [] wsPrf (There elemPrf) impossible
-getWindow' (z :: zs) wsPrf (There elemPrf) = bimap id There $ getWindow' zs (snd $ keysInjective wsPrf) elemPrf
+getWindow : IdentifiesWindow n ws => RuntimeWindows ws -> (runtimeWindow ** runtimeWindow.props = lookupWindow n ws)
+getWindow @{Here} (rw@(MkRuntimeWindow (MkWindow n _ _) win) :: rws) = (rw ** Refl)
+getWindow @{(There e)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) win) :: rws) = getWindow @{e} rws
 
-addRuntimeWindow : (name : String)
+bumpWindowSameWindow : {ws : List NCurses.Window}
+                    -> {w : DPair NCurses.Window (flip Elem ws)}
+                    -> {win : RuntimeWindow}
+                    -> win.props = w.fst
+                    -> win.props = (bumpWindow w).fst
+bumpWindowSameWindow {w = (w ** elem)} prf = prf
+
+addRuntimeWindow : {ws : List NCurses.Window}
+                -> {w : DPair NCurses.Window (flip Elem ws)}
+                -> (name : String)
                 -> (runtimeWin : Core.Window)
-                -> CursesActive ws cs
-                -> CursesActive (initWindow name :: ws) cs
-addRuntimeWindow identifier runtimeWin (MkCursesActive windows {wsPrf} (Element w winsPrf) colors {csPrf}) =
-  MkCursesActive { windows = (identifier, runtimeWin) :: windows
-                 , wsPrf = cong (identifier ::) wsPrf
-                 , currentWindow = Element w (There winsPrf)
+                -> CursesActive ws w cs
+                -> CursesActive (initWindow name :: ws) (bumpWindow w) cs
+addRuntimeWindow identifier runtimeWin (MkCursesActive windows win {wPrf} colors {csPrf}) =
+  MkCursesActive { windows = initRuntimeWindow identifier runtimeWin :: windows
+                 , currentWindow = win
+                 , wPrf = bumpWindowSameWindow wPrf
                  , colors
                  , csPrf
                  }
 
-addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws cs -> CursesActive ws (name :: cs)
-addRuntimeColor name cp (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
+addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws w cs -> CursesActive ws w (name :: cs)
+addRuntimeColor name cp (MkCursesActive windows currentWindow {wPrf} colors {csPrf}) =
   MkCursesActive { windows
-                 , wsPrf
                  , currentWindow
+                 , wPrf
                  , colors = (name, cp) :: colors
                  , csPrf  = cong (name ::) csPrf
                  }
 
-setRuntimeWindow : IdentifiesWindow _ ws -> CursesActive ws cs -> CursesActive ws cs
-setRuntimeWindow elem (MkCursesActive windows {wsPrf} currentWindow colors {csPrf}) =
-  let currentWindow = getWindow' windows wsPrf elem
-  in  MkCursesActive windows {wsPrf} currentWindow colors {csPrf}
+setRuntimeWindow : IdentifiesWindow name ws -> CursesActive ws w cs -> CursesActive ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
+setRuntimeWindow elem (MkCursesActive windows currentWindow {wPrf} colors {csPrf}) =
+  let (w ** prf) = getWindow @{elem} windows
+  in
+  MkCursesActive { windows
+                 , currentWindow = w
+                 , wPrf = prf
+                 , colors
+                 , csPrf
+                 }
 
-getRuntimeWindow : CursesActive ws cs -> Core.Window
-getRuntimeWindow (MkCursesActive _ (Element (_, win) _) _) = win
+getCoreWindow : CursesActive ws w cs -> Core.Window
+getCoreWindow (MkCursesActive _ (MkRuntimeWindow _ win) _) = win
 
 setRuntimeKeypad : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setKeypad (Active i ws w cs) on)
-setRuntimeKeypad on (RActive (MkCursesActive windows {wsPrf} currentWindow colors {csPrf})) with 0 (swapKeypad on ws (snd w))
-  setRuntimeKeypad on (RActive (MkCursesActive windows {wsPrf = wsPrf} currentWindow colors {csPrf = csPrf})) | (ws' ** swapKeypadPrf) =
-    RActive $
-      MkCursesActive { windows
-                     , wsPrf = rewrite sym $ snd swapKeypadPrf in wsPrf
-                     , currentWindow
-                     , colors
-                     , csPrf
-                     }
+setRuntimeKeypad on (RActive (MkCursesActive windows currentWindow colors {csPrf})) with 0 (swapKeypad on ws (snd w))
+  setRuntimeKeypad on (RActive (MkCursesActive windows currentWindow colors {csPrf = csPrf})) | (ws' ** swapKeypadPrf) =
+    ?hole1
+--     RActive $
+--       MkCursesActive { windows
+--                      , currentWindow
+--                      , colors
+--                      , csPrf
+--                      }
 
+{-
 setRuntimeNoDelay : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setNoDelay (Active i ws w cs) on)
 setRuntimeNoDelay on (RActive (MkCursesActive windows {wsPrf} currentWindow colors {csPrf})) with 0 (swapNoDelay on ws (snd w))
   setRuntimeNoDelay on (RActive (MkCursesActive windows {wsPrf = wsPrf} currentWindow colors {csPrf = csPrf})) | (ws' ** swapNoDelayPrf) =
@@ -610,24 +660,27 @@ modNCursesAttr : HasIO io =>
                  AttrCmd s
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
-modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     (getRuntimeWindow as) (coreAttr rs attr) $> rs
-modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  (getRuntimeWindow as) (coreAttr rs attr) $> rs
-modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' (getRuntimeWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     (getCoreWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  (getCoreWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' (getCoreWindow as) (coreAttr rs attr) $> rs
 
 printNCurses : HasIO io =>
                IsActive s =>
                OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
-printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' (getRuntimeWindow as) row col $> rs
-printNCurses (PutStr str) rs@(RActive as)   = nPutStr' (getRuntimeWindow as) str $> rs
-printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getRuntimeWindow as) ch  $> rs
+printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' (getCoreWindow as) row col $> rs
+printNCurses (PutStr str) rs@(RActive as)   = nPutStr' (getCoreWindow as) str $> rs
+printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getCoreWindow as) ch  $> rs
 
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)
 runNCurses (Bind x f) rs = do
   (x' ** rs') <- runNCurses x rs
   runNCurses (f x') rs'
+runNCurses (NIO ops) rs = do
+  res <- liftIO ops
+  pure (res ** rs)
 ----
 runNCurses Init RInactive = Prelude.do
   initNCurses
@@ -636,10 +689,12 @@ runNCurses Init RInactive = Prelude.do
   keypad True
   noDelay False
   win <- stdWindow
-  pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, win)] (Element (Window.defaultWindow, win) Here) [] {wsPrf=Refl, csPrf=Refl})
+  let runtimeWindow = initRuntimeWindow Window.defaultWindow win
+  pure (() ** RActive $ MkCursesActive [(Window.defaultWindow, runtimeWindow)] (Element (Window.defaultWindow, runtimeWindow) Here) [] {wsPrf=Refl, csPrf=Refl})
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure (() ** RInactive)
+----
 runNCurses (AddWindow @{isActive} name pos size) (RActive as) = Prelude.do
   runtimeWin <- newWindow size.rows size.cols pos.row pos.col
   keypad' runtimeWin True
@@ -648,6 +703,7 @@ runNCurses (AddWindow @{isActive} name pos size) (RActive as) = Prelude.do
   pure (() ** RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
 runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure (() ** RActive $ setRuntimeWindow elem as)
+----
 runNCurses (AddColor name fg bg) (RActive as) = do
   let nextIdx = length as.colors
   when (nextIdx == 0) startColor
@@ -657,25 +713,23 @@ runNCurses (AddColor name fg bg) (RActive as) = do
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure (() ** rs')
-runNCurses Clear   rs@(RActive as) = clear'   (getRuntimeWindow as) $> (() ** rs)
-runNCurses Refresh rs@(RActive as) = refresh' (getRuntimeWindow as) $> (() ** rs)
+runNCurses Clear   rs@(RActive as) = clear'   (getCoreWindow as) $> (() ** rs)
+runNCurses Refresh rs@(RActive as) = refresh' (getCoreWindow as) $> (() ** rs)
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure (() ** rs')
-runNCurses (NIO ops) rs = do
-  res <- liftIO ops
-  pure (res ** rs)
 runNCurses GetPos rs@(RActive as) = do
-  let win = getRuntimeWindow as
+  let win = getCoreWindow as
   pure (MkPosition !(getYPos' win) !(getXPos' win) ** rs)
 runNCurses GetSize rs@(RActive as) = do
-  size <- (uncurry MkSize) <$> getMaxSize' (getRuntimeWindow as)
+  size <- (uncurry MkSize) <$> getMaxSize' (getCoreWindow as)
   pure (size ** rs)
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> (() ** RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() ** RActive as)
-runNCurses (SetKeypad on) (RActive as) = keypad' (getRuntimeWindow as) on $> (() ** setRuntimeKeypad on $ RActive as)
-runNCurses (SetNoDelay on) (RActive as) = noDelay' (getRuntimeWindow as) on $> (() ** setRuntimeNoDelay on $ RActive as)
+runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> (() ** setRuntimeKeypad on $ RActive as)
+runNCurses (SetNoDelay on) (RActive as) = noDelay' (getCoreWindow as) on $> (() ** setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
+runNCurses GetCh rs = ?h
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and
