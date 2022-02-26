@@ -5,6 +5,9 @@
 
 WINDOW* std_win();
 
+// The error return value for all int-returning functions.
+int ERR();
+
 int normal_attr();
 int underline_attr();
 int standout_attr();

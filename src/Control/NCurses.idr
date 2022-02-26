@@ -565,6 +565,10 @@ data CurrentWindow : (rw : RuntimeWindow) -> Elem w ws -> RuntimeWindows ws -> T
   Here  : CurrentWindow rw Here (rw :: rws)
   There : CurrentWindow rw e rws -> CurrentWindow rw (There e) (other :: rws)
 
+0 currentWindowPropsPrf : (e : Elem w ws) -> CurrentWindow rw e rws -> rw.props = w
+currentWindowPropsPrf Here Here = Refl
+currentWindowPropsPrf (There e) (There x) = currentWindowPropsPrf e x
+
 -- TODO: all of these erased proofs are probably suitable for Subset
 record CursesActive (0 ws : List NCurses.Window) (0 w : (w' ** Elem w' ws)) (0 cs : List String) where
   constructor MkCursesActive
@@ -757,7 +761,18 @@ runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> (() **
 runNCurses (SetNoDelay on) (RActive as) = noDelay' (getCoreWindow as) on $> (() ** setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
 -- TODO: prove that w.fst = rw.props for below:
-runNCurses GetCh (RActive (MkCursesActive windows (rw ** wPrf) colors)) = ?h
+runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _) ** wPrf) colors)) with 0 (w)
+  runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _) ** wPrf) colors)) | (w' ** e') =
+    rewrite sym $ currentWindowPropsPrf e' wPrf in
+      if noDelay
+         then if keypad
+                 then ?h1
+                 else do ch <- safeGetCh' (getCoreWindow as)
+                         pure (ch ** rewrite currentWindowPropsPrf e' wPrf in rs)
+         else if keypad
+                then ?h2
+                else do ch <- getCh' (getCoreWindow as)
+                        pure (ch ** rewrite currentWindowPropsPrf e' wPrf in rs)
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and

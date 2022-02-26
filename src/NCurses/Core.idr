@@ -6,6 +6,9 @@ libncurses fn = "C:" ++ fn ++ ",libncurses"
 libhelper : String -> String
 libhelper fn = "C:" ++ fn ++ ",libncurses-idris"
 
+%foreign libncurses "ERR"
+prim__err : PrimIO Int
+
 %foreign libhelper "std_win"
 prim__stdWindow : PrimIO AnyPtr
 
