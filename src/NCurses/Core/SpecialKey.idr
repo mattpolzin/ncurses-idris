@@ -1,17 +1,20 @@
 module NCurses.Core.SpecialKey
 
 import NCurses.Core
+import Data.List
+import Data.List.Elem
+import Data.Either
 
 %default total
+
+%foreign libncurses "keypad"
+prim__keypad : AnyPtr -> Int -> PrimIO ()
 
 %foreign libhelper "keyF0"
 prim__keyF0 : PrimIO Char
 
 %foreign libhelper "keyF1"
 prim__keyF1 : PrimIO Char
-
-%foreign libncurses "keypad"
-prim__keypad : AnyPtr -> Int -> PrimIO ()
 
 %foreign libhelper "keyF2"
 prim__keyF2 : PrimIO Char
@@ -83,6 +86,48 @@ data Key = F0
          | Right
          | Backspace
 
+allKeys : List Key
+allKeys = [ Up
+          , Down
+          , Left
+          , Right
+          , Backspace
+          , F0
+          , F1
+          , F2
+          , F3
+          , F4
+          , F5
+          , F6
+          , F7
+          , F8
+          , F9
+          , F10
+          , F11
+          , F12
+          ]
+
+allKeysCover : (k : Key) -> Elem k SpecialKey.allKeys
+allKeysCover F0        = %search
+allKeysCover F1        = %search
+allKeysCover F2        = %search
+allKeysCover F3        = %search
+allKeysCover F4        = %search
+allKeysCover F5        = %search
+allKeysCover F6        = %search
+allKeysCover F7        = %search
+allKeysCover F8        = %search
+allKeysCover F9        = %search
+allKeysCover F10       = %search
+allKeysCover F11       = %search
+allKeysCover F12       = %search
+allKeysCover Up        = %search
+allKeysCover Down      = %search
+allKeysCover Left      = %search
+allKeysCover Right     = %search
+allKeysCover Backspace = %search
+
+
 ||| Turn a Key into a Char that can be used to compare against
 ||| the results of getCh. This only applies if you have enabled
 ||| keypad for the given window.                                               
@@ -107,6 +152,34 @@ fnKeyChar Down      = primIO $ prim__keyDown
 fnKeyChar Left      = primIO $ prim__keyLeft
 fnKeyChar Right     = primIO $ prim__keyRight
 fnKeyChar Backspace = primIO $ prim__keyBackspace
+
+fnKeyPairing : HasIO io => Key -> (io Char, Key)
+fnKeyPairing k = (fnKeyChar k, k)
+
+-- hopefully sorted such that more common keys come
+-- earlier on, roughly.
+keyMap' : HasIO io => (List (io Char, Key))
+keyMap' = (fnKeyPairing {io}) <$> allKeys
+
+keyMapCovers : HasIO io => Builtin.snd <$> SpecialKey.keyMap' {io} = SpecialKey.allKeys
+keyMapCovers = Refl
+
+||| A Map from Chars to Keys that can be used to look characters up when
+||| keypad is enabled.
+export
+keyMap : HasIO io => io (List (Char, Key))
+keyMap = traverse (\(ch, k) => [ (ch', k) | ch' <- ch ]) (keyMap' {io})
+
+lookup' : HasIO io => Eq a => a -> List (io a, b) -> io (Maybe b)
+lookup' x [] = pure Nothing
+lookup' x ((y, z) :: xs) = do
+  y' <- y
+  if x == y'
+     then pure $ Just z
+     else lookup' x xs
+
+fromChar : HasIO io => Char -> io (Either Char Key)
+fromChar ch = maybeToEither ch <$> lookup' ch keyMap'
 
 ||| Turn keypad mode on or off for the given window.
 ||| When on, function keys (F0, F1, ...) and arrow keys are

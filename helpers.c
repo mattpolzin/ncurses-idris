@@ -6,7 +6,7 @@ WINDOW* std_win() {
   return stdscr;
 }
 
-int ERR() {
+int ncurses_err() {
   return ERR;
 }
 

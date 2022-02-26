@@ -15,7 +15,7 @@ prim__echo : PrimIO ()
 prim__noEcho : PrimIO ()
 
 %foreign libncurses "nodelay"
-prim__noDelay : AnyPtr -> Bool -> PrimIO ()
+prim__noDelay : AnyPtr -> Int -> PrimIO ()
 
 %foreign libncurses "getch"
 prim__getCh : PrimIO Char
@@ -68,7 +68,7 @@ noEcho = primIO $ prim__noEcho
 ||| turn those error values into @Nothing@.
 export
 noDelay' : HasIO io => Window -> Bool -> io ()
-noDelay' (Win win) on = primIO $ prim__noDelay win on
+noDelay' (Win win) on = primIO $ prim__noDelay win (boolToInt on)
 
 ||| @noDelay@ controls whether @getCh@ is blocking or not.
 ||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
