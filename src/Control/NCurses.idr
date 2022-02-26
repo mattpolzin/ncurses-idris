@@ -252,24 +252,31 @@ namespace Window
   setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
     Active i ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
 
-public export
-data InTy = IChar | IKeyOrChar
+-- public export
+-- data InTy = IChar | IKeyOrChar
+-- 
+-- public export
+-- data In = IMaybe InTy | IYes InTy
+-- 
+-- public export
+-- 0 NextIn : (w : NCurses.Window) -> In
+-- NextIn (MkWindow identifier keypad noDelay) =
+--   ifThenElse noDelay IMaybe IYes $
+--     ifThenElse keypad IKeyOrChar IChar
 
 public export
-data In = IMaybe InTy | IYes InTy
-
-public export
-0 NextIn : (w : NCurses.Window) -> In
+0 NextIn : (w : NCurses.Window) -> Type
 NextIn (MkWindow identifier keypad noDelay) =
-  ifThenElse noDelay IMaybe IYes $
-    ifThenElse keypad IKeyOrChar IChar
+  ifThenElse noDelay Maybe id $
+    ifThenElse keypad (Either Key Char) Char
 
-public export
-0 GetNext : In -> Type
-GetNext (IMaybe IChar) = Maybe Char
-GetNext (IMaybe IKeyOrChar) = Maybe (Either Key Char)
-GetNext (IYes IChar) = Char
-GetNext (IYes IKeyOrChar) = Either Key Char
+
+-- public export
+-- 0 GetNext : In -> Type
+-- GetNext (IMaybe IChar) = Maybe Char
+-- GetNext (IMaybe IKeyOrChar) = Maybe (Either Key Char)
+-- GetNext (IYes IChar) = Char
+-- GetNext (IYes IKeyOrChar) = Either Key Char
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -293,7 +300,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
   GetPos      : IsActive s => NCurses Position s (const s)
   GetSize     : IsActive s => NCurses Size s (const s)
-  GetCh       : NCurses (GetNext $ NextIn (fst w)) (Active i ws w cs) (const (Active i ws w cs))
+  GetCh       : NCurses (NextIn (fst w)) (Active i ws w cs) (const (Active i ws w cs))
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
   --       types of IO that are not supported by NCurses directly (like File IO).
@@ -749,7 +756,8 @@ runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() 
 runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> (() ** setRuntimeKeypad on $ RActive as)
 runNCurses (SetNoDelay on) (RActive as) = noDelay' (getCoreWindow as) on $> (() ** setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
-runNCurses GetCh rs = ?h
+-- TODO: prove that w.fst = rw.props for below:
+runNCurses GetCh (RActive (MkCursesActive windows (rw ** wPrf) colors)) = ?h
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and
