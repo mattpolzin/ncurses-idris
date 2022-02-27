@@ -1,3 +1,8 @@
+||| A program that draws a pumpkin.
+|||
+||| Massive credit to @gallais who originally created the following pumpkin with a fork of
+||| the NCurses library in an example that can be found here:
+||| https://github.com/gallais/ncurses-idris/blob/main/examples/Pumpkin.idr
 module Main
 
 import System
@@ -6,12 +11,7 @@ import Control.NCurses
 import Control.NCurses.Pretty
 import Data.Nat
 import Data.Maybe
-
-debugLine : IsActive s => (color : String) -> HasColor color s => (msg : String) -> NCurses () s (const s)
-debugLine c msg = do
-  move (MkPosition 0 0)
-  printDoc $
-    color c $ pretty msg
+import Data.String
 
 Line : Type
 Line = (Nat, Nat, Nat)
@@ -83,6 +83,12 @@ width = 44
 height : Nat
 height = 18
 
+instructions : String
+instructions = indent ((width `minus` (length unpadded)) `div` 2) unpadded 
+  where
+    unpadded : String
+    unpadded = "Ctrl+C to quit. 't' to toggle eyes!"
+
 drawLines : IsActive s => (color : String) -> HasColor color s => List Line -> NCurses () s (const s)
 drawLines color xs = setAttr (Color color) >> traverse_ drawLine xs
   where
@@ -91,25 +97,26 @@ drawLines color xs = setAttr (Color color) >> traverse_ drawLine xs
       move $ MkPosition {row, col}
       drawHorizontalLine ' ' len
 
-loop : IsActive s => NoKeypad s => NoDelay s => HasColor "debug" s => HasColor "black" s => HasColor "red" s => NCurses () s (const s)
+loop : IsActive s => NoKeypad s => YesDelay s => HasColor "black" s => HasColor "red" s => NCurses () s (const s)
 loop = do
-  interactive 0
+  interactive False
   where
     eyes : (color : String) -> HasColor color s => NCurses () s (const s)
     eyes color = drawLines color eyeLines
 
-    interactive : Nat -> NCurses () s (const s)
-    interactive n = TransitionIndexed.Do.do
-      ch <- getChar
-      -- turn eyes on or off if any key is currently pressed or not
-      if isJust ch then eyes "red" else eyes "black"
-      debugLine "debug" (if isJust ch then "\{show n} keeeey" else "\{show n} noooo key")
+    toggle : Char -> Bool -> Bool
+    toggle 't' y = not y
+    toggle _ y = y
+
+    interactive : Bool -> NCurses () s (const s)
+    interactive on = TransitionIndexed.Do.do
+      ch <- Char.getChar
+      -- turn eyes on/off when 't' is pressed
+      if (toggle ch on) then eyes "red" else eyes "black"
       refresh
---       liftIO $ sleep 1
       case !(liftIO handleNextCollectedSignal) of
            (Just SigINT) => pure ()
-           _ => interactive (S n)
-
+           _ => interactive (toggle ch on)
 
 run : NCurses () Inactive (const Inactive)
 run = TransitionIndexed.Do.do
@@ -123,11 +130,14 @@ run = TransitionIndexed.Do.do
   addColor "black"  Black Black
   addColor "red"    Red Red
   addColor "debug"  Red Black
-  addWindow "pumpkin" (MkPosition centerY centerX) (MkSize height width)
+  addWindow "instructions" (MkPosition centerY centerX) (MkSize 1 width)
+  addWindow "pumpkin" (MkPosition (centerY + 2) centerX) (MkSize height width)
   clear
+  setWindow "instructions"
+  putStr instructions
+  refresh
   setWindow "pumpkin"
   setKeypad False
-  setNoDelay True
   drawLines "green"  stalkLines 
   drawLines "orange" bodyLines
   drawLines "black" holeLines
@@ -139,3 +149,4 @@ main : IO ()
 main = do
   ignore $ collectSignal SigINT
   withNCurses run
+
