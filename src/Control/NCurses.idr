@@ -136,6 +136,11 @@ namespace CursesState
   currentWindow Inactive @{ItIsActive} impossible
   currentWindow (Active _ _ (w ** _) _) = w
 
+  public export
+  0 windows : (s : CursesState) -> IsActive s => List NCurses.Window
+  windows Inactive @{ItIsActive} impossible
+  windows (Active _ ws _ _) = ws
+
   public export %inline
   0 addWindow : (s : CursesState) -> IsActive s => (name : String) ->  CursesState
   addWindow Inactive @{ItIsActive} _ impossible
@@ -260,8 +265,8 @@ namespace Output
 namespace Window
   public export
   data IdentifiesWindow : (0 name : String) -> (0 windows : List NCurses.Window) -> Type where
-    Here : IdentifiesWindow name ((MkWindow name _ _) :: windows)
-    There : IdentifiesWindow name windows -> IdentifiesWindow name (w :: windows)
+    Here : IdentifiesWindow name ((MkWindow name _ _) :: ws)
+    There : IdentifiesWindow name ws -> IdentifiesWindow name (w :: ws)
 
   public export
   data HasWindow : (0 name : String) -> CursesState -> Type where
@@ -270,6 +275,13 @@ namespace Window
   public export
   data InWindow : (0 name : String) -> CursesState -> Type where
     IsCurrentWindow : InWindow name (Active _ _ ((MkWindow name _ _) ** _) _)
+
+  ||| If a window is an element of a list of windows, that element's name identifies
+  ||| one of the windows in the same list.
+  public export
+  elemIdentifiesWindow : Elem (MkWindow n k d) ws -> IdentifiesWindow n ws
+  elemIdentifiesWindow Here = Here
+  elemIdentifiesWindow (There x) = There $ elemIdentifiesWindow x
 
   public export %inline
   defaultWindow : String
@@ -300,15 +312,6 @@ public export
 NextIn w =
   ifThenElse w.noDelay Maybe id $
     ifThenElse w.keypad (Either Char Key) Char
-
--- NextIn (MkWindow identifier keypad noDelay) =
---   ifThenElse noDelay Maybe id $
---     ifThenElse keypad (Either Char Key) Char
-
--- public export
--- 0 GetNext : (s : CursesState) -> IsActive s => Type
--- GetNext s =
---   ifThenElse (currentWindow s).noDelay
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -404,6 +407,44 @@ setWindow = SetWindow
 export
 unsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (const (unsetWindow s))
 unsetWindow = UnsetWindow
+
+-- 0 t'' : IsActive s => InWindow n s => IdentifiesWindow n (windows s)
+-- t'' {s = (Active _ ws ((MkWindow n _ _) ** e) _)} @{ItIsActive} @{IsCurrentWindow} = elemIdentifiesWindow e
+
+0 t' : IsActive s => InWindow n1 s => HasWindow n2 s => HasWindow n1 (setWindow s n2)
+t' {s = (Active _ ws ((MkWindow _ _ _) ** e) _)} @{ItIsActive} @{IsCurrentWindow} @{ItHasWindow} =
+  ItHasWindow @{elemIdentifiesWindow e}
+
+0 t''' : (e: Elem (MkWindow n k d) ws) -> lookupWindow n ws @{elemIdentifiesWindow e} = (MkWindow n k d)
+t''' {ws = (MkWindow n k d) :: ws} Here = Refl
+t''' {ws = (MkWindow _ _ _) :: ws} (There x) = t''' x
+
+x' : {x : a} -> {y : b} -> Elem x xs -> Elem y ys -> x ~=~ y -> xs ~=~ ys -> Elem x xs ~=~ Elem y ys
+x' z w Refl Refl = Refl
+
+cong' : {x : a} -> {y : _} -> (0 f : a -> b) -> (p : x ~=~ y) -> f x ~=~ f y
+cong' f Refl = Refl
+
+absurd' : Window.There x = Window.Here -> Void
+absurd' Refl impossible
+
+0 t'''' : (e: Elem (MkWindow n k d) ws) -> lookupWindowPrf n ws @{elemIdentifiesWindow e} ~=~ e -- (rewrite t''' e in e)
+t'''' {ws = (MkWindow n k d) :: xs} Here = Refl
+t'''' {ws = (MkWindow _ _ _) :: xs} (There x) with (lookupWindowPrf n xs @{elemIdentifiesWindow x})
+  t'''' {ws = (MkWindow _ _ _) :: xs} (There x) | pat with (lookupWindow n xs @{elemIdentifiesWindow x}) proof origin -- <- lookupWindow in with pattern might be the key actually
+    t'''' {ws = (MkWindow _ _ _) :: xs} (There x) | pat | with_pat = ?h_rhsh
+
+0 t'' : (act : IsActive s) => (in1 : InWindow n1 s) => (has2 : HasWindow n2 s) => setWindow @{t' {s} {n1} {n2}} (setWindow s n2) n1 = s
+t'' {s = s@(Active _ ws ((MkWindow _ _ _) ** e) _)} @{ItIsActive} @{IsCurrentWindow} @{ItHasWindow} with (t''' e)
+  t'' {s = s@(Active _ ws ((MkWindow _ _ _) ** e) _)} @{ItIsActive} @{IsCurrentWindow} @{ItHasWindow} | with_pat = rewrite with_pat in ?hol_rhsl
+
+0 t : (act : IsActive s) => (in1 : InWindow n1 s) => (has2 : HasWindow n2 s) => NCurses () s (const (setWindow @{t' @{act} @{in1} @{has2}} (setWindow s n2) n1)) = NCurses () s (const s)
+t @{act} @{in1} @{ItHasWindow} = ?t_rhs_0
+
+
+export
+inWindow : IsActive s => HasWindow w s => (InWindow w s => NCurses () s (const s)) ->  NCurses () s (const s)
+inWindow f = ?inWindow_rhs
 
 ||| Clear the current window.
 |||
