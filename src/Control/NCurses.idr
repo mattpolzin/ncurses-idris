@@ -5,14 +5,16 @@ import NCurses.Core.Color
 import NCurses.Core.Attribute
 import NCurses.Core.SpecialKey
 import NCurses.Core.Input
-import public Data.List.Elem
-import public NCurses.Core.Color as Color
-import public Control.TransitionIndexed
 import Control.Monad.State
 import Data.DPair
 import Data.Either
 import Data.List
-import Decidable.Equality
+
+import public Data.List.Elem
+import public NCurses.Core.Color as Color
+import public NCurses.Core.Input as Input
+import public NCurses.Core.SpecialKey as SpecialKey
+import public Control.TransitionIndexed
 
 %default total
 
@@ -57,6 +59,14 @@ identifier (MkWindow i _ _) = i
 public export
 (.identifier) : NCurses.Window -> String
 (.identifier) = identifier
+
+public export
+(.keypad) : NCurses.Window -> Bool
+(.keypad) (MkWindow _ k _) = k
+
+public export
+(.noDelay) : NCurses.Window -> Bool
+(.noDelay) (MkWindow _ _ d) = d
 
 public export
 setKeypad : (on : Bool) -> NCurses.Window -> NCurses.Window
@@ -121,6 +131,11 @@ namespace CursesState
   data IsInactive : CursesState -> Type where
     ItIsInactive : IsInactive Inactive
 
+  public export
+  0 currentWindow : (s : CursesState) -> IsActive s => NCurses.Window
+  currentWindow Inactive @{ItIsActive} impossible
+  currentWindow (Active _ _ (w ** _) _) = w
+
   public export %inline
   0 addWindow : (s : CursesState) -> IsActive s => (name : String) ->  CursesState
   addWindow Inactive @{ItIsActive} _ impossible
@@ -175,6 +190,22 @@ namespace CursesState
   setNoDelay Inactive @{ItIsActive} _ impossible
   setNoDelay (Active input ws w cs) on = replaceWindow input cs (swapNoDelay on ws (snd w)) (swapNoDelayPrf on ws (snd w))
 
+  public export
+  data YesDelay : CursesState -> Type where
+    ItIsDelay : YesDelay (Active _ _ ((MkWindow _ _ False) ** _) _)
+
+  public export
+  data NoDelay : CursesState -> Type where
+    ItIsNoDelay : NoDelay (Active _ _ ((MkWindow _ _ True) ** _) _)
+
+  public export
+  data YesKeypad : CursesState -> Type where
+    ItIsKeypad : YesKeypad (Active _ _ ((MkWindow _ True _) ** _) _)
+
+  public export
+  data NoKeypad : CursesState -> Type where
+    ItIsNoKeypad : NoKeypad (Active _ _ ((MkWindow _ False _) ** _) _)
+
 namespace Attribute
   ||| Proof that the given color exists in the current
   ||| NCurses session.
@@ -203,11 +234,16 @@ namespace Attribute
     DisableAttr : Attribute s -> AttrCmd s
 
 namespace Output
+  ||| An NCuress Position; pass the constructor a row and a column.
+  ||| Note that this means the _y position_ comes first. Position starts
+  ||| at (0,0) in the upper left corner of the window.
   public export
   record Position where
     constructor MkPosition
     row,col : Nat
 
+  ||| An NCurses Size; pass the constructor rows and then columns.
+  ||| Note that this means the _height_ comes first.
   public export
   record Size where
     constructor MkSize
@@ -228,6 +264,10 @@ namespace Window
   public export
   data HasWindow : (0 name : String) -> CursesState -> Type where
     ItHasWindow : IdentifiesWindow name ws => HasWindow name (Active _ ws w _)
+
+  public export
+  data InWindow : (0 name : String) -> CursesState -> Type where
+    IsCurrentWindow : InWindow name (Active _ _ ((MkWindow name _ _) ** _) _)
 
   public export %inline
   defaultWindow : String
@@ -255,9 +295,18 @@ namespace Window
 
 public export
 0 NextIn : (w : NCurses.Window) -> Type
-NextIn (MkWindow identifier keypad noDelay) =
-  ifThenElse noDelay Maybe id $
-    ifThenElse keypad (Either Char Key) Char
+NextIn w =
+  ifThenElse w.noDelay Maybe id $
+    ifThenElse w.keypad (Either Char Key) Char
+
+-- NextIn (MkWindow identifier keypad noDelay) =
+--   ifThenElse noDelay Maybe id $
+--     ifThenElse keypad (Either Char Key) Char
+
+-- public export
+-- 0 GetNext : (s : CursesState) -> IsActive s => Type
+-- GetNext s =
+--   ifThenElse (currentWindow s).noDelay
 
 export
 data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
@@ -272,6 +321,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
   ModAttr     : IsActive s => AttrCmd s -> NCurses () s (const s)
   Clear       : IsActive s => NCurses () s (const s)
+  Erase       : IsActive s => NCurses () s (const s)
   Refresh     : IsActive s => NCurses () s (const s)
   Output      : IsActive s => OutputCmd s -> NCurses () s (const s)
   SetEcho     : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
@@ -281,7 +331,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
   GetPos      : IsActive s => NCurses Position s (const s)
   GetSize     : IsActive s => NCurses Size s (const s)
-  GetCh       : NCurses (NextIn (fst w)) (Active i ws w cs) (const (Active i ws w cs))
+  GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s (const s)
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
   --       types of IO that are not supported by NCurses directly (like File IO).
@@ -318,18 +368,18 @@ public export
 ||| active -- NCurses offers its own `putStr`
 ||| and the standard terminal output will
 ||| behave undesirably for the most part.
-public export
+export
 liftIO : IO a -> NCurses a s (const s)
 liftIO = NIO
 
 ||| Initialize an NCurses session. While this session is active,
 ||| normal terminal output will not behave the way you expect.
-public export
+export
 init : IsInactive s => NCurses () s (const NCurses.initState)
 init = Init
 
 ||| End an NCurses session.
-public export
+export
 deinit : IsActive s => NCurses () s (const Inactive)
 deinit = DeInit
 
@@ -341,35 +391,45 @@ deinit = DeInit
 ||| You get a default window encompassing the whole terminal screen, but
 ||| adding windows gives finer control over clearing of parts of the screen,
 ||| printing with coordinates relative to the smaller windows, etc.
-public export
+export
 addWindow : IsActive s => (name : String) -> Position -> Size -> NCurses () s (const (addWindow s name))
 addWindow = AddWindow
 
-public export
+export
 setWindow : IsActive s => (name : String) -> HasWindow name s => NCurses () s (const (setWindow s name))
 setWindow = SetWindow
 
-public export
+export
 unsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (const (unsetWindow s))
 unsetWindow = UnsetWindow
 
-||| Clear the screen of the current window.
-public export
+||| Clear the current window.
+|||
+||| Clearing tells NCurses to redraw the whole terminal on the next
+||| refresh. For a less intensive process that allows NCurses
+||| to determine what parts of the terminal need to be drawn,
+||| use @erase@.
+export
 clear : IsActive s => NCurses () s (const s)
 clear = Clear
 
+||| Erase the current window.
+export
+erase : IsActive s => NCurses () s (const s)
+erase = Erase
+
 ||| Refresh the current window.
-public export
+export
 refresh : IsActive s => NCurses () s (const s)
 refresh = Refresh
 
 ||| Get the current cursor position.
-public export
+export
 getPos : IsActive s => NCurses Position s (const s)
 getPos = GetPos
 
 ||| Get the size of the current window.
-public export
+export
 getSize : IsActive s => NCurses Size s (const s)
 getSize = GetSize
 
@@ -382,7 +442,7 @@ namespace Attribute
   |||
   ||| Once added, colors can be referenced by name
   ||| when constructing Attributes.
-  public export
+  export
   addColor : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (const (addColor s name))
   addColor = AddColor
 
@@ -390,7 +450,7 @@ namespace Attribute
   ||| This has no impact on any other attributes that are set.
   |||
   ||| In ncurses terminology, "attron"
-  public export
+  export
   enableAttr : IsActive s => Attribute s -> NCurses () s (const s)
   enableAttr = ModAttr . EnableAttr
 
@@ -398,7 +458,7 @@ namespace Attribute
   ||| This has no impact on any other attributes that are set.
   |||
   ||| In ncurses terminology, "attroff"
-  public export
+  export
   disableAttr : IsActive s => Attribute s -> NCurses () s (const s)
   disableAttr = ModAttr . DisableAttr
 
@@ -410,14 +470,14 @@ namespace Attribute
   ||| `setAttr Normal` clears all attributes.
   |||
   ||| In ncurses terminology, "attrset"
-  public export
+  export
   setAttr : IsActive s => Attribute s -> NCurses () s (const s)
   setAttr = ModAttr . SetAttr
 
   ||| Set all the given attributes, replacing any existing attributes.
   |||
   ||| In ncurses terminology, "attrset"
-  public export
+  export
   setAttrs : IsActive s => List (Attribute s) -> NCurses () s (const s)
   setAttrs = -- efficiency note: NCurses offers a one-function call to achieve
              -- this by passing a mask of ORed attributes. We could support
@@ -430,22 +490,22 @@ namespace Attribute
 
 namespace Output
   ||| Print a character to the terminal.
-  public export
+  export
   putCh : IsActive s => Char -> NCurses () s (const s)
   putCh = Output . PutCh
 
   ||| Print a string to the terminal _without_ a trailing newline.
-  public export
+  export
   putStr : IsActive s => String -> NCurses () s (const s)
   putStr = Output . PutStr
 
   ||| Print a string to the terminal _with_ a trailing newline.
-  public export
+  export
   putStrLn : IsActive s => String -> NCurses () s (const s)
   putStrLn = Output . PutStr . (++ "\n")
 
   ||| Move the cursor.
-  public export
+  export
   move : IsActive s => Position -> NCurses () s (const s)
   move = Output . Move
 
@@ -459,7 +519,7 @@ namespace Input
   ||| newline is typed (the default behavior for most terminal environments).
   |||
   ||| This setting affects all windows.
-  public export
+  export
   setCBreak : IsActive s => (on : Bool) -> NCurses () s (const (setCBreak s on))
   setCBreak = SetCBreak
 
@@ -467,7 +527,7 @@ namespace Input
   ||| by NCurses as well as delivered to @getCh@.
   |||
   ||| This setting affects all windows.
-  public export
+  export
   setEcho : IsActive s => (on : Bool) -> NCurses () s (const (setEcho s on))
   setEcho = SetEcho
 
@@ -482,12 +542,22 @@ namespace Input
   ||| property turned on.
   |||
   ||| This is on by default.
-  public export
+  export
   setKeypad : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
   setKeypad = SetKeypad
 
+  ||| Turn "noDelay" on or off.
+  |||
+  ||| This property is set independently for each window. This method only sets the
+  ||| property for the current window.
+  |||
+  ||| This is off by default (i.e. by default @getInput@ waits for user input).
+  export
+  setNoDelay : IsActive s => (on : Bool) -> NCurses () s (const (setNoDelay s on))
+  setNoDelay = SetNoDelay
+
   ||| Set the way the cursor is displayed to the user.
-  public export
+  export
   setCursor : IsActive s => CursorVisibility -> NCurses () s (const s)
   setCursor = SetCursor
   
@@ -501,8 +571,34 @@ namespace Input
   |||
   ||| If `keypad` is turned on, @getInput@ returns either a @Char@ or a @Key@ depending
   ||| on whether the user has input one of the special-keys (like the arrow keys).
-  getInput : NCurses (NextIn (fst w)) (Active i ws w cs) (const (Active i ws w cs))
+  export
+  getInput : IsActive s => NCurses (NextIn (currentWindow s)) s (const s)
   getInput = GetCh
+
+  -- One would ideally not need to write the following (just use the `getInput` above)
+  -- but in reality it provides a better user experience for downstream development if
+  -- functions can be typed as `IsActive s => IsKeypad s => NoDelay s => NCurses () s (const s)`
+  -- which does not provide Idris enough information at compile time to evaluate @NextIn@, but
+  -- it does allow for the following functions to be used.
+  namespace Char
+    export
+    getChar : IsActive s => NoKeypad s => YesDelay s => NCurses Char s (const s)
+    getChar @{act} @{ItIsNoKeypad} @{ItIsDelay} = GetCh
+
+    namespace NotDelayed
+      export
+      getChar : IsActive s => NoKeypad s => NoDelay s => NCurses (Maybe Char) s (const s)
+      getChar @{act} @{ItIsNoKeypad} @{ItIsNoDelay} = GetCh
+
+  namespace Keypad
+    export
+    getKeyOrChar : IsActive s => YesKeypad s => YesDelay s => NCurses (Either Char Key) s (const s)
+    getKeyOrChar @{act} @{ItIsKeypad} @{ItIsDelay} = GetCh
+
+    namespace NotDelayed
+      export
+      getKeyOrChar : IsActive s => YesKeypad s => NoDelay s => NCurses (Maybe (Either Char Key)) s (const s)
+      getKeyOrChar @{act} @{ItIsKeypad} @{ItIsNoDelay} = GetCh
 
 --
 -- Test Routine
@@ -520,8 +616,19 @@ testRoutine = TransitionIndexed.Do.do
   putStrLn "back to basics."
   addWindow "win1" (MkPosition 10 10) (MkSize 10 20)
   setWindow "win1"
+  inp <- getInput
+  putChIfPossible inp
   unsetWindow
   deinit
+    where
+      putChIfPossible : IsActive s => Either Char Key -> NCurses () s (const s)
+      putChIfPossible (Left x) = putCh x
+      putChIfPossible (Right _) = pure ()
+
+      getAndPut : IsActive s => YesDelay s => YesKeypad s => NCurses () s (const s)
+      getAndPut = do
+        inp <- getKeyOrChar
+        putChIfPossible inp
 
 --
 -- Runtime
@@ -746,6 +853,7 @@ runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure (() ** rs')
 runNCurses Clear   rs@(RActive as) = clear'   (getCoreWindow as) $> (() ** rs)
+runNCurses Erase   rs@(RActive as) = erase'   (getCoreWindow as) $> (() ** rs)
 runNCurses Refresh rs@(RActive as) = refresh' (getCoreWindow as) $> (() ** rs)
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
