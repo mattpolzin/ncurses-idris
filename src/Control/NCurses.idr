@@ -253,6 +253,8 @@ namespace Output
   data OutputCmd : CursesState -> Type where
     PutCh  : Char -> OutputCmd s
     PutStr : String -> OutputCmd s
+    VLine  : Char -> Nat -> OutputCmd s
+    HLine  : Char -> Nat -> OutputCmd s
     Move   : Position -> OutputCmd s
 
 namespace Window
@@ -503,6 +505,18 @@ namespace Output
   export
   putStrLn : IsActive s => String -> NCurses () s (const s)
   putStrLn = Output . PutStr . (++ "\n")
+
+  ||| Draw a vertical line to the current window comprised of the given
+  ||| character and having the given length.
+  export
+  drawVerticalLine : IsActive s => Char -> Nat -> NCurses () s (const s)
+  drawVerticalLine = Output .: VLine
+
+  ||| Draw a horizontal line to the current window comprised of the given
+  ||| character and having the given length.
+  export
+  drawHorizontalLine : IsActive s => Char -> Nat -> NCurses () s (const s)
+  drawHorizontalLine = Output .: HLine
 
   ||| Move the cursor.
   export
@@ -811,6 +825,8 @@ printNCurses : HasIO io =>
 printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' (getCoreWindow as) row col $> rs
 printNCurses (PutStr str) rs@(RActive as)   = nPutStr' (getCoreWindow as) str $> rs
 printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getCoreWindow as) ch  $> rs
+printNCurses (VLine ch n) rs@(RActive as)   = nVerticalLine'   (getCoreWindow as) ch n $> rs
+printNCurses (HLine ch n) rs@(RActive as)   = nHorizontalLine' (getCoreWindow as) ch n $> rs
 
 runNCurses : HasIO io => NCurses a s fs -> RuntimeCurses s -> io (x : a ** RuntimeCurses (fs x))
 runNCurses (Pure x) rs = pure (x ** rs)

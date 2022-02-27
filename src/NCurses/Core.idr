@@ -71,6 +71,18 @@ prim__mvPrint : Int -> Int -> String -> String -> PrimIO ()
 %foreign libncurses "mvwprintw"
 prim__mvPrintWindow : AnyPtr -> Int -> Int -> String -> String -> PrimIO ()
 
+%foreign libncurses "vline"
+prim__verticalLine : Char -> Int -> PrimIO ()
+
+%foreign libncurses "wvline"
+prim__verticalLineWindow : AnyPtr -> Char -> Int -> PrimIO ()
+
+%foreign libncurses "hline"
+prim__horizontalLine : Char -> Int -> PrimIO ()
+
+%foreign libncurses "whline"
+prim__horizontalLineWindow : AnyPtr -> Char -> Int -> PrimIO ()
+
 %foreign libncurses "move"
 prim__move : Int -> Int -> PrimIO ()
 
@@ -213,6 +225,28 @@ nPutStrAt row str = primIO $ prim__mvPrint (cast row) 0 "%s" str
 export
 nPutStrAt' : HasIO io => Window -> (row : Nat) -> String -> io ()
 nPutStrAt' (Win win) row str = primIO $ prim__mvPrintWindow win (cast row) 0 "%s" str
+
+||| Draw a vertical line comprised of the given character.
+export
+nVerticalLine : HasIO io => Char -> Nat -> io ()
+nVerticalLine ch n = primIO $ prim__verticalLine ch (cast n)
+
+||| Draw a vertical line comprised of the given character in
+||| the given window.
+export
+nVerticalLine' : HasIO io => Window -> Char -> Nat -> io ()
+nVerticalLine' (Win win) ch n = primIO $ prim__verticalLineWindow win ch (cast n)
+
+||| Draw a horizontal line comprised of the given character.
+export
+nHorizontalLine : HasIO io => Char -> Nat -> io ()
+nHorizontalLine ch n = primIO $ prim__horizontalLine ch (cast n)
+
+||| Draw a horizontal line comprised of the given character in
+||| the given window.
+export
+nHorizontalLine' : HasIO io => Window -> Char -> Nat -> io ()
+nHorizontalLine' (Win win) ch n = primIO $ prim__horizontalLineWindow win ch (cast n)
 
 ||| Move the cursor in the standard window.
 export
