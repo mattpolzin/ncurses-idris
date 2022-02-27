@@ -1,0 +1,6 @@
+package control_pumpkin
+
+depends = contrib, indexed, ncurses-idris
+
+executable = "control_pumpkin"
+main = Main
