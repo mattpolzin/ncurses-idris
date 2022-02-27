@@ -14,8 +14,20 @@ prim__echo : PrimIO ()
 %foreign libncurses "noecho"
 prim__noEcho : PrimIO ()
 
+%foreign libncurses "nodelay"
+prim__noDelay : AnyPtr -> Int -> PrimIO ()
+
 %foreign libncurses "getch"
 prim__getCh : PrimIO Char
+
+%foreign libncurses "wgetch"
+prim__getChWindow : AnyPtr -> PrimIO Char
+
+%foreign libncurses "getch"
+prim__safeGetCh : PrimIO Int
+
+%foreign libncurses "wgetch"
+prim_safeGetChWindow  : AnyPtr -> PrimIO Int
 
 %foreign libncurses "curs_set"
 prim__setCursorVisibility : Int -> PrimIO ()
@@ -50,6 +62,22 @@ export
 noEcho : HasIO io => io ()
 noEcho = primIO $ prim__noEcho
 
+||| @noDelay'@ controls whether @getCh@ is blocking or not.
+||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
+||| returns immediately and returns an error value. Use @safeGetCh@ with @noDelay@ on to
+||| turn those error values into @Nothing@.
+export
+noDelay' : HasIO io => Window -> Bool -> io ()
+noDelay' (Win win) on = primIO $ prim__noDelay win (boolToInt on)
+
+||| @noDelay@ controls whether @getCh@ is blocking or not.
+||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
+||| returns immediately and returns an error value. Use @safeGetCh@ with @noDelay@ on to
+||| turn those error values into @Nothing@.
+export
+noDelay : HasIO io => Bool -> io ()
+noDelay on = noDelay' !stdWindow on
+
 ||| Get a single character. 
 |||
 ||| If cbreak mode is on, the character is returned
@@ -60,6 +88,52 @@ noEcho = primIO $ prim__noEcho
 export
 getCh : HasIO io => io Char
 getCh = primIO $ prim__getCh
+
+||| Get a single character from the given window. 
+|||
+||| If cbreak mode is on, the character is returned
+||| immediately. This contrasts with a read from
+||| the default shell `stdin` which will wait until a
+||| newline to flush its buffer and send input to a
+||| program.
+export
+getCh' : HasIO io => Window -> io Char
+getCh' (Win win) = primIO $ prim__getChWindow win
+
+||| Get a single character or Nothing on error. 
+|||
+||| If cbreak mode is on, the character is returned
+||| immediately. This contrasts with a read from
+||| the default shell `stdin` which will wait until a
+||| newline to flush its buffer and send input to a
+||| program.
+export
+safeGetCh : HasIO io => io (Maybe Char)
+safeGetCh = do
+  err <- primIO $ prim__err
+  ch <- primIO $ prim__safeGetCh
+  pure $
+    if ch == err
+       then Nothing
+       else Just (cast ch)
+
+||| Get a single character from the given window or Nothing
+||| on error. 
+|||
+||| If cbreak mode is on, the character is returned
+||| immediately. This contrasts with a read from
+||| the default shell `stdin` which will wait until a
+||| newline to flush its buffer and send input to a
+||| program.
+export
+safeGetCh' : HasIO io => Window -> io (Maybe Char)
+safeGetCh' (Win win) = do
+  err <- primIO $ prim__err
+  ch <- primIO $ prim_safeGetChWindow win
+  pure $
+    if ch == err
+       then Nothing
+       else Just (cast ch)
 
 public export 
 data CursorVisibility = CInvisible | CNormal| CHighlyVisible

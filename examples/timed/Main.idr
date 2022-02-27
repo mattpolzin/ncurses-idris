@@ -4,10 +4,10 @@ import Data.Fuel
 import System
 import NCurses
 
-loop : HasIO io => Fuel -> io ()
-loop Dry = pure ()
-loop (More fuel) = do
-  nPutStrLn "Looping..."
+loop : HasIO io => Nat -> io ()
+loop 0 = pure ()
+loop (S fuel) = do
+  nPutStrLn "Looping... \{show fuel}"
   refresh
   sleep 1
   loop fuel
@@ -19,6 +19,6 @@ main = do
   cp <- initColorPair 1 Green Black
   nSetAttr (CP cp)
   clear
-  loop (limit 5)
+  loop 5
   deinitNCurses
 

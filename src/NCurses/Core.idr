@@ -6,6 +6,9 @@ libncurses fn = "C:" ++ fn ++ ",libncurses"
 libhelper : String -> String
 libhelper fn = "C:" ++ fn ++ ",libncurses-idris"
 
+%foreign libhelper "ncurses_err"
+prim__err : PrimIO Int
+
 %foreign libhelper "std_win"
 prim__stdWindow : PrimIO AnyPtr
 
@@ -35,6 +38,12 @@ prim__clear : PrimIO ()
 
 %foreign libncurses "wclear"
 prim__clearWindow : AnyPtr -> PrimIO ()
+
+%foreign libncurses "erase"
+prim__erase : PrimIO ()
+
+%foreign libncurses "werase"
+prim__eraseWindow : AnyPtr -> PrimIO ()
 
 %foreign libncurses "printw"
 prim__print : String -> String -> PrimIO ()
@@ -137,15 +146,37 @@ refresh' (Win win) = primIO $ prim__refreshWindow win
 
 ||| Clear the standard window.
 |||
+||| Clearing causes NCurses to redraw the whole terminal on
+||| the next call to refresh. See @erase@ for a less intensive
+||| process that allows NCurses to intelligently determine how
+||| much of the terminal view needs to be redrawn.
+|||
 ||| See @clear'@ to clear any other window.
 export
 clear : HasIO io => io ()
 clear = primIO $ prim__clear
 
 ||| Clear a particular window.
+|||
+||| Clearing causes NCurses to redraw the whole terminal on
+||| the next call to refresh. See @erase@ for a less intensive
+||| process that allows NCurses to intelligently determine how
+||| much of the terminal view needs to be redrawn.
 export
 clear' : HasIO io => Window -> io ()
 clear' (Win win) = primIO $ prim__clearWindow win
+
+||| Erase the standard window.
+|||
+||| See @erase'@ to erase any other window.
+export
+erase : HasIO io => io ()
+erase = primIO $ prim__erase
+
+||| Erase the given window.
+export
+erase' : HasIO io => Window -> io ()
+erase' (Win win) = primIO $ prim__eraseWindow win
 
 export
 nPutCh : HasIO io => Char -> io ()

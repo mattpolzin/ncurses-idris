@@ -6,6 +6,10 @@ WINDOW* std_win() {
   return stdscr;
 }
 
+int ncurses_err() {
+  return ERR;
+}
+
 int normal_attr() {
   return A_NORMAL;
 }
