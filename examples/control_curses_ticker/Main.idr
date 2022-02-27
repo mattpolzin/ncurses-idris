@@ -6,12 +6,24 @@ import Control.NCurses
 import Control.NCurses.Pretty
 import Data.Nat
 
-displayTicker : IsActive s => InWindow "ticker" s => Nat -> NCurses () s (const s)
-displayTicker k = putStr (show k)
---   printDoc $ 
---     color "green" (bold $ pretty k)
+instructions : String
+instructions = "Ctrl+C to quit. Up/Down arrows to adjust ticker.\n"
 
-loop : IsActive s => InWindow "ticker" s => YesDelay s => YesKeypad s => Nat -> NCurses () s (const s)
+displayTicker : IsActive s => InWindow "ticker" s => HasColor "green" s => HasColor "white" s => Nat -> NCurses () s (const s)
+displayTicker k =
+  let mid = (cast $ length instructions) `div` 2
+      centered = mid - ((cast $ (length (show k)) + 4) `div` 2)
+  in
+  printDoc $ indent centered $
+    hsep [ dash
+         , color "green" (bold $ pretty k)
+         , dash
+         ]
+  where
+    dash : Doc (Attribute s)
+    dash = color "white" $ pretty "-"
+
+loop : IsActive s => InWindow "ticker" s => HasColor "green" s => HasColor "white" s => YesDelay s => YesKeypad s => Nat -> NCurses () s (const s)
 loop n = do
   keyOrCh <- getKeyOrChar
   tally keyOrCh
@@ -24,7 +36,7 @@ loop n = do
 
       tally : Either Char Key -> NCurses () s (const s)
       tally x = do
-        clear
+        erase
         let n' = case x of Right Up => (pred n); Right Down => (S n); _ => n
         displayTicker n'
         refresh
@@ -33,13 +45,17 @@ loop n = do
 run : NCurses () Inactive (const Inactive)
 run = TransitionIndexed.Do.do
   init
+  (MkSize rows cols) <- getSize
+  let centerX = (cols `div` 2) `minus` ((length instructions) `div` 2)
+  let centerY = (rows `div` 2)
   addColor "green" Green Black
+  addColor "white" White Black
   setCursor CInvisible
-  addWindow "header" (MkPosition 0 0) (MkSize 1 50)
-  addWindow "ticker" (MkPosition 1 0) (MkSize 1 10)
+  addWindow "header" (MkPosition centerY     centerX) (MkSize 1 (length instructions))
+  addWindow "ticker" (MkPosition (S centerY) centerX) (MkSize 1 (length instructions))
   clear
   setWindow "header"
-  putStrLn "Ctrl+C to quit. Up/Down arrows to adjust ticker.\n"
+  putStrLn instructions
   refresh
   setWindow "ticker"
   let n = 25

@@ -224,7 +224,7 @@ namespace Attribute
     Bold          : Attribute s
     Protected     : Attribute s
     Invisible     : Attribute s
-    DefaultColors : IsActive s => Attribute s
+    DefaultColors : Attribute s
     Color         : (name : String) -> HasColor name s => Attribute s
 
   public export

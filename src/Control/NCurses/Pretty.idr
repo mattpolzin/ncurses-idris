@@ -9,9 +9,15 @@ import Control.Monad.State
 import public Text.PrettyPrint.Prettyprinter.Doc
 import Control.Indexed
 
+||| Set the color of upcoming text.
+||| See also @defaultColor@.
 export
 color : (name : String) -> HasColor name s => Doc (Attribute s) -> Doc (Attribute s)
 color name = annotate (Color name)
+
+export
+defaultColor : Doc (Attribute s) -> Doc (Attribute s)
+defaultColor = annotate DefaultColors
 
 export
 underline : Doc (Attribute s) -> Doc (Attribute s)
