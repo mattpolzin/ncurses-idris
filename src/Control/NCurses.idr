@@ -331,6 +331,7 @@ data NCurses : (a : Type) -> CursesState -> (a -> CursesState) -> Type where
   SetNoDelay  : IsActive s => (on : Bool) -> NCurses () s (const (setNoDelay s on))
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s (const s)
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (const (setKeypad s on))
+  SetSize     : IsActive s => Size -> NCurses () s (const s)
   GetPos      : IsActive s => NCurses Position s (const s)
   GetSize     : IsActive s => NCurses Size s (const s)
   GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s (const s)
@@ -434,6 +435,11 @@ getPos = GetPos
 export
 getSize : IsActive s => NCurses Size s (const s)
 getSize = GetSize
+
+||| Set the size of the current window.
+export
+setSize : IsActive s => Size -> NCurses () s (const s)
+setSize = SetSize
 
 --
 -- Attribute Commands
@@ -877,6 +883,7 @@ runNCurses (Output cmd) rs = do
 runNCurses GetPos rs@(RActive as) = do
   let win = getCoreWindow as
   pure (MkPosition !(getYPos' win) !(getXPos' win) ** rs)
+runNCurses (SetSize size) rs@(RActive as) = setWindowSize (getCoreWindow as) size.cols size.rows $> (() ** rs)
 runNCurses GetSize rs@(RActive as) = do
   size <- (uncurry MkSize) <$> getMaxSize' (getCoreWindow as)
   pure (size ** rs)
@@ -885,7 +892,6 @@ runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> (() 
 runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> (() ** setRuntimeKeypad on $ RActive as)
 runNCurses (SetNoDelay on) (RActive as) = noDelay' (getCoreWindow as) on $> (() ** setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> (() ** rs)
--- TODO: prove that w.fst = rw.props for below:
 runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _) ** wPrf) colors keyMap)) with 0 (w)
   runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _) ** wPrf) colors keyMap)) | (w' ** e') =
     rewrite sym $ currentWindowPropsPrf e' wPrf in
