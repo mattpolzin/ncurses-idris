@@ -12,6 +12,7 @@ import Control.NCurses.Pretty
 import Data.Nat
 import Data.Maybe
 import Data.String
+import Control.Indexed
 
 Line : Type
 Line = (Nat, Nat, Nat)
@@ -89,27 +90,27 @@ instructions = indent ((width `minus` (length unpadded)) `div` 2) unpadded
     unpadded : String
     unpadded = "Ctrl+C to quit. 't' to toggle eyes!"
 
-drawLines : IsActive s => (color : String) -> HasColor color s => List Line -> NCurses () s (const s)
+drawLines : IsActive s => (color : String) -> HasColor color s => List Line -> NCurses () s s
 drawLines color xs = setAttr (Color color) >> traverse_ drawLine xs
   where
-    drawLine : (Nat, Nat, Nat) -> NCurses () s (const s)
+    drawLine : (Nat, Nat, Nat) -> NCurses () s s
     drawLine (row, col, len) = do
       move $ MkPosition {row, col}
       drawHorizontalLine ' ' len
 
-loop : IsActive s => NoKeypad s => YesDelay s => HasColor "black" s => HasColor "red" s => NCurses () s (const s)
+loop : IsActive s => NoKeypad s => YesDelay s => HasColor "black" s => HasColor "red" s => NCurses () s s
 loop = do
   interactive False
   where
-    eyes : (color : String) -> HasColor color s => NCurses () s (const s)
+    eyes : (color : String) -> HasColor color s => NCurses () s s
     eyes color = drawLines color eyeLines
 
     toggle : Char -> Bool -> Bool
     toggle 't' y = not y
     toggle _ y = y
 
-    interactive : Bool -> NCurses () s (const s)
-    interactive on = TransitionIndexed.Do.do
+    interactive : Bool -> NCurses () s s
+    interactive on = Indexed.Do.do
       ch <- Char.getChar
       -- turn eyes on/off when 't' is pressed
       if (toggle ch on) then eyes "red" else eyes "black"
@@ -118,8 +119,8 @@ loop = do
            (Just SigINT) => pure ()
            _ => interactive (toggle ch on)
 
-run : NCurses () Inactive (const Inactive)
-run = TransitionIndexed.Do.do
+run : NCurses () Inactive Inactive
+run = Indexed.Do.do
   init
   (MkSize rows cols) <- getSize
   let centerX = (cols `div` 2) `minus` (width `div` 2)

@@ -5,7 +5,7 @@ import System.Signal
 import Control.NCurses
 import Control.NCurses.Pretty
 
-loop : NCurses () s (const s)
+loop : NCurses () s s
 loop =
   case !(liftIO handleNextCollectedSignal) of
        (Just SigINT) => pure ()
@@ -24,8 +24,8 @@ prettyDoc =
        , underline "End of final transmission."
        ]
 
-run : NCurses () Inactive (const Inactive)
-run = TransitionIndexed.Do.do
+run : NCurses () Inactive Inactive
+run = Indexed.Do.do
   init
   addWindow "main" (MkPosition 0 0) (MkSize 35 45)
   setWindow "main"
