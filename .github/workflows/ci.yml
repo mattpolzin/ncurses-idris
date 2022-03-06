@@ -33,6 +33,16 @@ jobs:
           cd examples/control_curses
           make
           cd -
+      - name: Build ticker example
+        run: |
+          cd examples/control_curses_ticker
+          make
+          cd -
+      - name: Build pumpkin example
+        run: |
+          cd examples/control_pumpkin
+          make
+          cd -
       - name: Build timed example
         run: |
           cd examples/timed

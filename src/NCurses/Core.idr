@@ -21,6 +21,10 @@ prim__maxXWindow : AnyPtr -> PrimIO Int
 %foreign libncurses "getmaxy"
 prim__maxYWindow : AnyPtr -> PrimIO Int
 
+-- Returns ERR/OK
+%foreign libncurses "wresize"
+prim__resizeWindow : AnyPtr -> Int -> Int -> PrimIO Int
+
 %foreign libncurses "getcury"
 prim__getYWindow : AnyPtr -> PrimIO Int
 
@@ -143,6 +147,10 @@ getXPos' (Win win) = map cast . primIO $ prim__getXWindow win
 export
 getXPos : HasIO io => io Nat
 getXPos = getXPos' !stdWindow
+
+export
+setWindowSize : HasIO io => Window -> (rows : Nat) -> (cols : Nat) -> io ()
+setWindowSize (Win win) rows cols= ignore . primIO $ prim__resizeWindow win (cast rows) (cast cols) 
 
 ||| Refresh the standard window.
 |||

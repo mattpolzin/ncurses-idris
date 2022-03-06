@@ -53,14 +53,14 @@ invisible = annotate Invisible
 
 record Const (s : CursesState) a where
   constructor C
-  runConst : NCurses a s (const s)
+  runConst : NCurses a s s
 
 Functor (Const s) where
   map f = C . map f . runConst
 
 Applicative (Const s) where
   pure = C . pure
-  (C x) <*> (C y) = C (x <*> y)
+  (C x) <*> (C y) = C (x <<*>> y)
 
 Monad (Const s) where
   (C x) >>= f = C $ do
@@ -74,7 +74,7 @@ AttrState : CursesState -> Type
 AttrState s = StateT (Attrs s) (Const s) ()
 
 export
-renderDoc : IsActive s => SimpleDocStream (Attribute s) -> NCurses () s (const s)
+renderDoc : IsActive s => SimpleDocStream (Attribute s) -> NCurses () s s
 renderDoc = runConst . evalStateT [] . go
   where
     go : SimpleDocStream (Attribute s) -> AttrState s
@@ -96,6 +96,6 @@ renderDoc = runConst . evalStateT [] . go
       go rest
 
 export
-printDoc : IsActive s => Doc (Attribute s) -> NCurses () s (const s)
+printDoc : IsActive s => Doc (Attribute s) -> NCurses () s s
 printDoc = renderDoc . layoutPretty defaultLayoutOptions
 

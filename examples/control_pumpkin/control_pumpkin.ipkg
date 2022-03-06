@@ -1,6 +1,8 @@
 package control_pumpkin
 
-depends = contrib, indexed, ncurses-idris
+depends = contrib
+        , indexed >= 0.0.7
+        , ncurses-idris
 
 executable = "control_pumpkin"
 main = Main

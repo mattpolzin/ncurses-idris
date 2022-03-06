@@ -9,7 +9,7 @@ import Data.Nat
 instructions : String
 instructions = "Ctrl+C to quit. Up/Down arrows to adjust ticker.\n"
 
-displayTicker : IsActive s => InWindow "ticker" s => HasColor "green" s => HasColor "white" s => Nat -> NCurses () s (const s)
+displayTicker : IsActive s => InWindow "ticker" s => HasColor "green" s => HasColor "white" s => Nat -> NCurses () s s
 displayTicker k =
   let mid = (cast $ length instructions) `div` 2
       centered = mid - ((cast $ (length (show k)) + 4) `div` 2)
@@ -23,18 +23,18 @@ displayTicker k =
     dash : Doc (Attribute s)
     dash = color "white" $ pretty "-"
 
-loop : IsActive s => InWindow "ticker" s => HasColor "green" s => HasColor "white" s => YesDelay s => YesKeypad s => Nat -> NCurses () s (const s)
+loop : IsActive s => InWindow "ticker" s => HasColor "green" s => HasColor "white" s => YesDelay s => YesKeypad s => Nat -> NCurses () s s
 loop n = do
   keyOrCh <- getKeyOrChar
   tally keyOrCh
     where
-      loopOrExit : Nat -> NCurses () s (const s)
+      loopOrExit : Nat -> NCurses () s s
       loopOrExit n' = 
         case !(liftIO handleNextCollectedSignal) of
              (Just SigINT) => pure ()
              _ => loop n'
 
-      tally : Either Char Key -> NCurses () s (const s)
+      tally : Either Char Key -> NCurses () s s
       tally x = do
         erase
         let n' = case x of Right Up => (pred n); Right Down => (S n); _ => n
@@ -42,8 +42,8 @@ loop n = do
         refresh
         loopOrExit n'
 
-run : NCurses () Inactive (const Inactive)
-run = TransitionIndexed.Do.do
+run : NCurses () Inactive Inactive
+run = Indexed.Do.do
   init
   (MkSize rows cols) <- getSize
   let centerX = (cols `div` 2) `minus` ((length instructions) `div` 2)
