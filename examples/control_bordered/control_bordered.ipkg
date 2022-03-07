@@ -1,0 +1,6 @@
+package control_bordered
+
+depends = contrib, indexed, ncurses-idris
+
+executable = "control_bordered"
+main = Main

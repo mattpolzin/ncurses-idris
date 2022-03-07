@@ -180,6 +180,11 @@ refresh' (Win win) = primIO $ prim__refreshWindow win
 ||| process that allows NCurses to intelligently determine how
 ||| much of the terminal view needs to be redrawn.
 |||
+||| Clearing the standard window will require refreshing all
+||| windows after the next call to refresh the standard window,
+||| It probably makes sense much of the time to refresh immediately
+||| after a call to clear.
+|||
 ||| See @clear'@ to clear any other window.
 export
 clear : HasIO io => io ()
@@ -191,6 +196,11 @@ clear = primIO $ prim__clear
 ||| the next call to refresh. See @erase@ for a less intensive
 ||| process that allows NCurses to intelligently determine how
 ||| much of the terminal view needs to be redrawn.
+|||
+||| Clearing the standard window will require refreshing all
+||| windows after the next call to refresh the standard window,
+||| It probably makes sense much of the time to refresh immediately
+||| after a call to clear.
 export
 clear' : HasIO io => Window -> io ()
 clear' (Win win) = primIO $ prim__clearWindow win

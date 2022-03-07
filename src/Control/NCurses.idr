@@ -332,6 +332,7 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   Clear       : IsActive s => NCurses () s s
   Erase       : IsActive s => NCurses () s s
   Refresh     : IsActive s => NCurses () s s
+  RefreshAll  : IsActive s => NCurses () s s
   Output      : IsActive s => OutputCmd s -> NCurses () s s
   SetEcho     : IsActive s => (on : Bool) -> NCurses () s (setEcho s on)
   SetCBreak   : IsActive s => (on : Bool) -> NCurses () s (setCBreak s on)
@@ -454,6 +455,11 @@ unsetWindow = UnsetWindow
 ||| refresh. For a less intensive process that allows NCurses
 ||| to determine what parts of the terminal need to be drawn,
 ||| use @erase@.
+|||
+||| Clearing the standard window will require refreshing all
+||| windows after the next call to refresh the standard window,
+||| It probably makes sense much of the time to refresh immediately
+||| after a call to clear.
 export
 clear : IsActive s => NCurses () s s
 clear = Clear
@@ -467,6 +473,11 @@ erase = Erase
 export
 refresh : IsActive s => NCurses () s s
 refresh = Refresh
+
+||| Refresh all windows.
+export
+refreshAll : IsActive s => NCurses () s s
+refreshAll = RefreshAll
 
 ||| Get the current cursor position.
 export
@@ -744,6 +755,7 @@ record CursesActive (0 ws : List NCurses.Window) (0 w : (w' ** Elem w' ws)) (0 c
   currentWindow : (rw ** CurrentWindow rw w.snd windows)
   colors : List (String, ColorPair)
   {0 csPrf : (keys colors) = cs}
+  currentColor : Maybe ColorPair
   keyMap : List (Char, Key)
 
 data RuntimeCurses : CursesState -> Type where
@@ -778,11 +790,12 @@ addRuntimeWindow : {0 ws : List NCurses.Window}
                 -> (runtimeWin : Core.Window)
                 -> CursesActive ws w cs
                 -> CursesActive (initWindow name :: ws) (bumpWindow w) cs
-addRuntimeWindow identifier border runtimeWin (MkCursesActive windows (rw ** wPrf) colors keyMap {csPrf = csPrf}) =
+addRuntimeWindow identifier border runtimeWin (MkCursesActive windows (rw ** wPrf) colors currentColor keyMap {csPrf = csPrf}) =
   MkCursesActive { windows = initRuntimeWindow identifier border runtimeWin :: windows
                  , currentWindow = (rw ** bumpWindowSameWindow {wPrf})
                  , colors
                  , csPrf
+                 , currentColor
                  , keyMap
                  }
 
@@ -794,35 +807,37 @@ runtimeBorder rs@(RActive as) (Evidence color (border, (ItHasColor @{elem}))) =
   in  (cp, Evidence color border)
 
 addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws w cs -> CursesActive ws w (name :: cs)
-addRuntimeColor name cp (MkCursesActive windows currentWindow colors {csPrf} keyMap) =
+addRuntimeColor name cp (MkCursesActive windows currentWindow colors currentColor {csPrf} keyMap) =
   MkCursesActive { windows
                  , currentWindow
                  , colors = (name, cp) :: colors
                  , csPrf  = cong (name ::) csPrf
+                 , currentColor
                  , keyMap
                  }
 
 setRuntimeWindow : IdentifiesWindow name ws -> CursesActive ws w cs -> CursesActive ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
-setRuntimeWindow elem (MkCursesActive windows currentWindow colors {csPrf} keyMap) =
+setRuntimeWindow elem (MkCursesActive windows currentWindow colors {csPrf} currentColor keyMap) =
   MkCursesActive { windows
                  , currentWindow = getWindow @{elem} windows
                  , colors
                  , csPrf
+                 , currentColor
                  , keyMap
                  }
 
 getCoreWindow : CursesActive ws w cs -> Core.Window
-getCoreWindow (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ _) = win
+getCoreWindow (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ _ _) = win
 
 swapKeypad' : {0 origW : NCurses.Window} -> {0 origWs : List NCurses.Window} -> {0 e : Elem origW origWs} -> (on : Bool) -> {rw : _} -> (rws : RuntimeWindows origWs) -> CurrentWindow rw e rws -> (rws' : RuntimeWindows (swapKeypad on origWs e) ** CurrentWindow (setRWKeypad on rw) (swapKeypadPrf on origWs e) rws')
-swapKeypad' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _) :: rws) Here =
-  ((MkRuntimeWindow (MkWindow identifier on noDelay) _ _) :: rws ** Here)
+swapKeypad' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) b _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) b _) :: rws) Here =
+  ((MkRuntimeWindow (MkWindow identifier on noDelay) b _) :: rws ** Here)
 swapKeypad' on {rw = (MkRuntimeWindow (MkWindow y z w) b win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} x) =
     let (rws'' ** rw') = swapKeypad' on {rw=MkRuntimeWindow (MkWindow y z w) b win} rws' x
     in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} rw')
 
 setRuntimeKeypad : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setKeypad (Active i ws w cs) on)
-setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} keyMap)) = 
+setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} currentColor keyMap)) = 
   let (windows' ** rw') = swapKeypad' on windows wPrf
   in
   RActive $
@@ -830,18 +845,19 @@ setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf}
                    , currentWindow = (setRWKeypad on rw ** rw')
                    , colors
                    , csPrf
+                   , currentColor
                    , keyMap
                    }
 
 swapNoDelay' : {0 origW : NCurses.Window} -> {0 origWs : List NCurses.Window} -> {0 e : Elem origW origWs} -> (on : Bool) -> {rw : _} -> (rws : RuntimeWindows origWs) -> CurrentWindow rw e rws -> (rws' : RuntimeWindows (swapNoDelay on origWs e) ** CurrentWindow (setRWNoDelay on rw) (swapNoDelayPrf on origWs e) rws')
-swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _) :: rws) Here =
-  ((MkRuntimeWindow (MkWindow identifier keypad on) _ _) :: rws ** Here)
+swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) b _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) b _) :: rws) Here =
+  ((MkRuntimeWindow (MkWindow identifier keypad on) b _) :: rws ** Here)
 swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow y z w) b win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} x) =
     let (rws'' ** rw') = swapNoDelay' on {rw=MkRuntimeWindow (MkWindow y z w) b win} rws' x
     in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} rw')
 
 setRuntimeNoDelay : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setNoDelay (Active i ws w cs) on)
-setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} keyMap)) =
+setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} currentColor keyMap)) =
   let (windows' ** rw') = swapNoDelay' on windows wPrf
   in
   RActive $
@@ -849,6 +865,7 @@ setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf
                    , currentWindow = (setRWNoDelay on rw ** rw')
                    , colors
                    , csPrf
+                   , currentColor
                    , keyMap
                    }
 
@@ -865,18 +882,33 @@ coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive _ _ colors {csPrf} _)) (Color name @{ItHasColor @{elem}}) =
+coreAttr (RActive (MkCursesActive _ _ colors {csPrf} _ _)) (Color name @{ItHasColor @{elem}}) =
   let color = getColor colors csPrf elem
   in  CP color
+
+||| Set the current color IF the atttribute in question is a color attribute.
+maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
+maybeSetCurrentColor (Color name @{ItHasColor @{elem}}) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  let color = getColor colors csPrf elem
+  in
+  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just color) keyMap)
+maybeSetCurrentColor _ rs = rs
+
+||| Unset the current color IF the attribute in question is a color attribute.
+maybeUnsetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
+maybeUnsetCurrentColor (Color _) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  RActive (MkCursesActive windows currentWindow colors {csPrf} Nothing keyMap)
+maybeUnsetCurrentColor _ rs = rs
+
 
 modNCursesAttr : HasIO io =>
                  IsActive s =>
                  AttrCmd s
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
-modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     (getCoreWindow as) (coreAttr rs attr) $> rs
-modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  (getCoreWindow as) (coreAttr rs attr) $> rs
-modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' (getCoreWindow as) (coreAttr rs attr) $> rs
+modNCursesAttr (SetAttr attr) rs@(RActive as)     = nSetAttr'     (getCoreWindow as) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
+modNCursesAttr (EnableAttr attr) rs@(RActive as)  = nEnableAttr'  (getCoreWindow as) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
+modNCursesAttr (DisableAttr attr) rs@(RActive as) = nDisableAttr' (getCoreWindow as) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
 
 printNCurses : HasIO io =>
                IsActive s =>
@@ -890,12 +922,23 @@ printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getCoreWindow as) ch  $>
 printNCurses (VLine ch n) rs@(RActive as)   = nVerticalLine'   (getCoreWindow as) ch n $> rs
 printNCurses (HLine ch n) rs@(RActive as)   = nHorizontalLine' (getCoreWindow as) ch n $> rs
 
-drawBorder : HasIO io => Core.Window -> Maybe RuntimeBorder -> io ()
-drawBorder _ Nothing = pure ()
-drawBorder win (Just (cp, (Evidence _ border))) = do
+drawBorder : HasIO io => Core.Window -> (currentColor : Maybe ColorPair) -> Maybe RuntimeBorder -> io ()
+drawBorder _ _ Nothing = pure ()
+drawBorder win currentColor (Just (cp, (Evidence _ border))) = do
+  nEnableAttr' win (CP cp)
   nWindowBorder win border.left border.right border.top border.bottom
                     border.topLeft border.topRight border.bottomLeft border.bottomRight
-  refresh' win
+  case currentColor of
+       Just cp' => nEnableAttr' win (CP cp')
+       Nothing  => nDisableAttr' win (CP cp)
+
+drawCurrentBorder : HasIO io => CursesActive ws w cs -> io ()
+drawCurrentBorder (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ currentColor _) =
+  drawBorder win currentColor border
+
+refreshAllRuntime : HasIO io => RuntimeWindows ws -> (currentColor : Maybe ColorPair) -> io ()
+refreshAllRuntime [] _ = pure ()
+refreshAllRuntime ((MkRuntimeWindow _ border win) :: ws) currentColor = drawBorder win currentColor border *> refresh' win *> refreshAllRuntime ws currentColor
 
 runNCurses : HasIO io => NCurses a s1 s2 -> RuntimeCurses s1 -> io (a, RuntimeCurses s2)
 runNCurses (Pure x) rs = pure (x, rs)
@@ -914,7 +957,7 @@ runNCurses Init RInactive = Prelude.do
   noDelay False
   win <- stdWindow
   keyMap <- SpecialKey.keyMap
-  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow Nothing win] (initRuntimeWindow Window.defaultWindow Nothing win ** Here) [] {csPrf=Refl} keyMap)
+  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow Nothing win] (initRuntimeWindow Window.defaultWindow Nothing win ** Here) [] {csPrf=Refl} Nothing keyMap)
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure ((), RInactive)
@@ -924,7 +967,7 @@ runNCurses (AddWindow @{isActive} name pos size border) rs@(RActive as) = Prelud
   keypad' runtimeWin True
   noDelay' runtimeWin False
   let b = runtimeBorder rs <$> border
-  drawBorder runtimeWin b
+  drawBorder runtimeWin as.currentColor b
   let as' = addRuntimeWindow name b runtimeWin as
   pure ((), RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
@@ -939,10 +982,20 @@ runNCurses (AddColor name fg bg) (RActive as) = do
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure ((), rs')
--- TODO: probably redraw the window border after clear and erase
-runNCurses Clear   rs@(RActive as) = clear'   (getCoreWindow as) $> ((), rs)
-runNCurses Erase   rs@(RActive as) = erase'   (getCoreWindow as) $> ((), rs)
-runNCurses Refresh rs@(RActive as) = refresh' (getCoreWindow as) $> ((), rs)
+runNCurses Clear   rs@(RActive as) =
+  let win = getCoreWindow as
+  in  clear' win $> ((), rs)
+runNCurses Erase   rs@(RActive as) =
+  let win = getCoreWindow as
+  in  erase' win $> ((), rs)
+runNCurses Refresh rs@(RActive as) =
+  let win = getCoreWindow as
+  in  drawCurrentBorder as *> refresh' win $> ((), rs)
+runNCurses RefreshAll rs@(RActive (MkCursesActive windows _ _ currentColor _)) = 
+  -- refresh std window:
+  refresh *>
+  -- followed by all others:
+  refreshAllRuntime windows currentColor $> ((), rs)
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
@@ -960,8 +1013,8 @@ runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> ((),
 runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> ((), setRuntimeKeypad on $ RActive as)
 runNCurses (SetNoDelay on) (RActive as) = noDelay' (getCoreWindow as) on $> ((), setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> ((), rs)
-runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _ _) ** wPrf) colors keyMap)) with 0 (w)
-  runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _ _) ** wPrf) colors keyMap)) | (w' ** e') =
+runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _ _) ** wPrf) colors currentColor keyMap)) with 0 (w)
+  runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _ _) ** wPrf) colors currentColor keyMap)) | (w' ** e') =
     rewrite sym $ currentWindowPropsPrf e' wPrf in
       if noDelay
          then if keypad
