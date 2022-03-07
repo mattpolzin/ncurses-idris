@@ -50,7 +50,13 @@ data Window : Type where
   ||| The `noDelay` parameter controls whether @getCh@ is blocking or not.
   ||| When noDelay is False, @getCh@ will wait until the user types. Otherwise, @getCh@
   ||| returns immediately and returns @Nothing@ if the user has not input anything.
-  MkWindow : (identifier : String) -> (keypad : Bool) -> (noDelay : Bool) -> Window
+  |||
+  ||| If a window has a border, it is drawn inside the window's bounds. This also means the
+  ||| effective area to draw within is 1 row/column smaller all of the way around the window.
+  ||| Moving to row/column 0 will position the cursor just inside the border.
+  MkWindow : (identifier : String)
+          -> (keypad : Bool)
+          -> (noDelay : Bool) -> Window
 
 public export
 identifier : NCurses.Window -> String
@@ -233,6 +239,14 @@ namespace Attribute
     EnableAttr  : Attribute s -> AttrCmd s
     DisableAttr : Attribute s -> AttrCmd s
 
+||| A Window border.
+public export
+record Border (color : String) where
+  constructor MkBorder
+--   {0 state : CursesState}
+--   color : Subset String (\c => HasColor c state)
+  left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight : BorderChar
+
 namespace Output
   ||| An NCuress Position; pass the constructor a row and a column.
   ||| Note that this means the _y position_ comes first. Position starts
@@ -284,11 +298,13 @@ namespace Window
   public export
   0 lookupWindowPrf : (name : String) -> (ws : List NCurses.Window) -> IdentifiesWindow name ws => Elem (lookupWindow name ws) ws
   lookupWindowPrf name (MkWindow name _ _ :: windows) @{Here} = Here
-  lookupWindowPrf name ((MkWindow identifier keypad noDelay) :: ws') @{(There e)} = There (lookupWindowPrf name ws')
+  lookupWindowPrf name ((MkWindow identifier keypad noDelay) :: ws') @{(There e)} =
+    There (lookupWindowPrf name ws')
 
   public export %inline
   0 unsetWindow : (s : CursesState) -> IsActive s => HasWindow Window.defaultWindow s => CursesState
-  unsetWindow (Active i ws _ cs) @{_} @{ItHasWindow @{elem}} = Active i ws (lookupWindow defaultWindow ws ** lookupWindowPrf defaultWindow ws) cs
+  unsetWindow (Active i ws _ cs) @{_} @{ItHasWindow @{elem}} =
+    Active i ws (lookupWindow defaultWindow ws ** lookupWindowPrf defaultWindow ws) cs
 
   public export %inline
   0 setWindow : (s : CursesState) -> (name : String) -> HasWindow name s => CursesState
@@ -301,15 +317,6 @@ NextIn w =
   ifThenElse w.noDelay Maybe id $
     ifThenElse w.keypad (Either Char Key) Char
 
--- NextIn (MkWindow identifier keypad noDelay) =
---   ifThenElse noDelay Maybe id $
---     ifThenElse keypad (Either Char Key) Char
-
--- public export
--- 0 GetNext : (s : CursesState) -> IsActive s => Type
--- GetNext s =
---   ifThenElse (currentWindow s).noDelay
-
 export
 data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   Pure : (x : a) -> NCurses a s s
@@ -317,7 +324,7 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
 
   Init        : IsInactive s => NCurses () s NCurses.initState
   DeInit      : IsActive s => NCurses () s Inactive
-  AddWindow   : IsActive s => (name : String) -> Position -> Size -> NCurses () s (addWindow s name)
+  AddWindow   : IsActive s => (name : String) -> Position -> Size -> Maybe (Exists (\c => (Border c, HasColor c s))) -> NCurses () s (addWindow s name)
   SetWindow   : IsActive s => (name : String) -> HasWindow name s => NCurses () s (setWindow s name)
   UnsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (unsetWindow s)
   AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (addColor s name)
@@ -383,9 +390,55 @@ deinit = DeInit
 ||| You get a default window encompassing the whole terminal screen, but
 ||| adding windows gives finer control over clearing of parts of the screen,
 ||| printing with coordinates relative to the smaller windows, etc.
+|||
+||| See the @border@ function for a convenient initializer of the @Border@ type.
 export
-addWindow : IsActive s => (name : String) -> Position -> Size -> NCurses () s (addWindow s name)
+addWindow : IsActive s =>
+            (name : String)
+         -> Position
+         -> Size
+         -> Maybe (Exists (\c => (Border c, HasColor c s)))
+         -> NCurses () s (addWindow s name)
 addWindow = AddWindow
+
+||| Create a border for a window given the colors available in the current
+||| state.
+public export
+border : IsActive s => 
+         (color : String)
+      -> HasColor color s =>
+         (left   : BorderChar)
+      -> (right  : BorderChar)
+      -> (top    : BorderChar)
+      -> (bottom : BorderChar)
+      -> (topLeft     : BorderChar)
+      -> (topRight    : BorderChar)
+      -> (bottomLeft  : BorderChar)
+      -> (bottomRight : BorderChar)
+      -> Maybe (Exists (\c => (Border c, HasColor c s)))
+border @{_} color @{hasColor} left right top bottom topLeft topRight bottomLeft bottomRight =
+  Just $
+    Evidence color $
+      ( MkBorder { left
+                 , right
+                 , top
+                 , bottom
+                 , topLeft
+                 , topRight
+                 , bottomLeft
+                 , bottomRight
+                 }
+      , hasColor)
+
+public export
+defaultBorder : IsActive s => 
+                (color : String)
+             -> HasColor color s =>
+                Maybe (Exists (\c => (Border c, HasColor c s)))
+defaultBorder color =
+  border color Default Default Default Default
+               Default Default Default Default
+               {s}
 
 export
 setWindow : IsActive s => (name : String) -> HasWindow name s => NCurses () s (setWindow s name)
@@ -623,11 +676,12 @@ testRoutine = Indexed.Do.do
   putStr "Hello World"
   setAttr DefaultColors
   putStrLn "back to basics."
-  addWindow "win1" (MkPosition 10 10) (MkSize 10 20)
+  addWindow "win1" (MkPosition 10 10) (MkSize 10 20) Nothing
   setWindow "win1"
   inp <- getInput
   putChIfPossible inp
   unsetWindow
+  addWindow "win2" (MkPosition 0 0) (MkSize 10 10) (defaultBorder "alert")
   deinit
     where
       putChIfPossible : IsActive s => Either Char Key -> NCurses () s s
@@ -651,21 +705,25 @@ keys ((x, y) :: xs) = x :: keys xs
 keysInjective : {0 x : _} -> keys (x :: xs) = (y :: ys) -> (Builtin.fst x = y, NCurses.keys xs = ys)
 keysInjective {x = (w, z)} Refl = (Refl, Refl)
 
+RuntimeBorder : Type
+RuntimeBorder = (ColorPair, Exists (\c => Border c))
+
 record RuntimeWindow where
   constructor MkRuntimeWindow
-  props : NCurses.Window
-  win : Core.Window
+  props  : NCurses.Window
+  border : Maybe RuntimeBorder
+  win    : Core.Window
 
-initRuntimeWindow : String -> Core.Window -> RuntimeWindow
-initRuntimeWindow name win = MkRuntimeWindow (initWindow name) win
+initRuntimeWindow : String -> Maybe RuntimeBorder -> Core.Window -> RuntimeWindow
+initRuntimeWindow name border win = MkRuntimeWindow (initWindow name) border win
 
 setRWKeypad : (on : Bool) -> RuntimeWindow -> RuntimeWindow
-setRWKeypad on (MkRuntimeWindow (MkWindow identifier keypad noDelay) win) =
-  MkRuntimeWindow (MkWindow identifier on noDelay) win
+setRWKeypad on (MkRuntimeWindow (MkWindow identifier keypad noDelay) border win) =
+  MkRuntimeWindow (MkWindow identifier on noDelay) border win
 
 setRWNoDelay : (on : Bool) -> RuntimeWindow -> RuntimeWindow
-setRWNoDelay on (MkRuntimeWindow (MkWindow identifier keypad noDelay) win) =
-  MkRuntimeWindow (MkWindow identifier keypad on) win
+setRWNoDelay on (MkRuntimeWindow (MkWindow identifier keypad noDelay) border win) =
+  MkRuntimeWindow (MkWindow identifier keypad on) border win
 
 data RuntimeWindows : List NCurses.Window -> Type where
   Nil : RuntimeWindows []
@@ -701,31 +759,39 @@ getColor [] csPrf (There elemPrf) impossible
 getColor (z :: zs) csPrf (There elemPrf) = getColor zs (snd $ keysInjective csPrf) elemPrf
 
 getWindow : IdentifiesWindow n ws => (rws : RuntimeWindows ws) -> (rw ** CurrentWindow rw (lookupWindowPrf n ws) rws)
-getWindow @{Here} (rw@(MkRuntimeWindow (MkWindow n _ _) win) :: rws') = (rw ** Here)
-getWindow @{There e} (rw'@(MkRuntimeWindow (MkWindow identifier keypad noDelay) win) :: rws') = bimap id There $ getWindow @{e} rws'
+getWindow @{Here} (rw@(MkRuntimeWindow (MkWindow n _ _) b win) :: rws') = (rw ** Here)
+getWindow @{There e} (rw'@(MkRuntimeWindow (MkWindow identifier keypad noDelay) border win) :: rws') =
+  bimap id There $ getWindow @{e} rws'
 
 bumpWindowSameWindow : {0 ws : List NCurses.Window}
                     -> {0 w : DPair NCurses.Window (flip Elem ws)}
                     -> {windows : RuntimeWindows ws}
                     -> {rw : RuntimeWindow}
                     -> {wPrf : CurrentWindow rw (w.snd) windows}
-                    -> CurrentWindow rw ((NCurses.bumpWindow w).snd) (MkRuntimeWindow (MkWindow n True False) runtimeWin :: windows)
+                    -> CurrentWindow rw ((NCurses.bumpWindow w).snd) (MkRuntimeWindow (MkWindow n True False) b runtimeWin :: windows)
 bumpWindowSameWindow {w = (w' ** elem)} = There wPrf
-
 
 addRuntimeWindow : {0 ws : List NCurses.Window}
                 -> {0 w : DPair NCurses.Window (flip Elem ws)}
                 -> (name : String)
+                -> (border : Maybe RuntimeBorder)
                 -> (runtimeWin : Core.Window)
                 -> CursesActive ws w cs
                 -> CursesActive (initWindow name :: ws) (bumpWindow w) cs
-addRuntimeWindow identifier runtimeWin (MkCursesActive windows (rw ** wPrf) colors keyMap {csPrf = csPrf}) =
-  MkCursesActive { windows = initRuntimeWindow identifier runtimeWin :: windows
+addRuntimeWindow identifier border runtimeWin (MkCursesActive windows (rw ** wPrf) colors keyMap {csPrf = csPrf}) =
+  MkCursesActive { windows = initRuntimeWindow identifier border runtimeWin :: windows
                  , currentWindow = (rw ** bumpWindowSameWindow {wPrf})
                  , colors
                  , csPrf
                  , keyMap
                  }
+
+runtimeBorder : RuntimeCurses (Active i ws w cs)
+             -> Exists (\c => (Border c, HasColor c (Active i ws w cs)))
+             -> RuntimeBorder
+runtimeBorder rs@(RActive as) (Evidence color (border, (ItHasColor @{elem}))) =
+  let cp = getColor as.colors as.csPrf elem
+  in  (cp, Evidence color border)
 
 addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws w cs -> CursesActive ws w (name :: cs)
 addRuntimeColor name cp (MkCursesActive windows currentWindow colors {csPrf} keyMap) =
@@ -746,14 +812,14 @@ setRuntimeWindow elem (MkCursesActive windows currentWindow colors {csPrf} keyMa
                  }
 
 getCoreWindow : CursesActive ws w cs -> Core.Window
-getCoreWindow (MkCursesActive _ ((MkRuntimeWindow props win) ** _) _ _) = win
+getCoreWindow (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ _) = win
 
 swapKeypad' : {0 origW : NCurses.Window} -> {0 origWs : List NCurses.Window} -> {0 e : Elem origW origWs} -> (on : Bool) -> {rw : _} -> (rws : RuntimeWindows origWs) -> CurrentWindow rw e rws -> (rws' : RuntimeWindows (swapKeypad on origWs e) ** CurrentWindow (setRWKeypad on rw) (swapKeypadPrf on origWs e) rws')
-swapKeypad' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) _) :: rws) Here =
-  ((MkRuntimeWindow (MkWindow identifier on noDelay) _) :: rws ** Here)
-swapKeypad' on {rw = (MkRuntimeWindow (MkWindow y z w) win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther)} x) =
-    let (rws'' ** rw') = swapKeypad' on {rw=MkRuntimeWindow (MkWindow y z w) win} rws' x
-    in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther)} rw')
+swapKeypad' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _) :: rws) Here =
+  ((MkRuntimeWindow (MkWindow identifier on noDelay) _ _) :: rws ** Here)
+swapKeypad' on {rw = (MkRuntimeWindow (MkWindow y z w) b win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} x) =
+    let (rws'' ** rw') = swapKeypad' on {rw=MkRuntimeWindow (MkWindow y z w) b win} rws' x
+    in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} rw')
 
 setRuntimeKeypad : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setKeypad (Active i ws w cs) on)
 setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} keyMap)) = 
@@ -768,11 +834,11 @@ setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf}
                    }
 
 swapNoDelay' : {0 origW : NCurses.Window} -> {0 origWs : List NCurses.Window} -> {0 e : Elem origW origWs} -> (on : Bool) -> {rw : _} -> (rws : RuntimeWindows origWs) -> CurrentWindow rw e rws -> (rws' : RuntimeWindows (swapNoDelay on origWs e) ** CurrentWindow (setRWNoDelay on rw) (swapNoDelayPrf on origWs e) rws')
-swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) _) :: rws) Here =
-  ((MkRuntimeWindow (MkWindow identifier keypad on) _) :: rws ** Here)
-swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow y z w) win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther)} x) =
-    let (rws'' ** rw') = swapNoDelay' on {rw=MkRuntimeWindow (MkWindow y z w) win} rws' x
-    in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) winOther)} rw')
+swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) _ _) :: rws) Here =
+  ((MkRuntimeWindow (MkWindow identifier keypad on) _ _) :: rws ** Here)
+swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow y z w) b win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} x) =
+    let (rws'' ** rw') = swapNoDelay' on {rw=MkRuntimeWindow (MkWindow y z w) b win} rws' x
+    in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} rw')
 
 setRuntimeNoDelay : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setNoDelay (Active i ws w cs) on)
 setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} keyMap)) =
@@ -817,13 +883,16 @@ printNCurses : HasIO io =>
                OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
+-- TODO: make the border affect position moved to
 printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' (getCoreWindow as) row col $> rs
 printNCurses (PutStr str) rs@(RActive as)   = nPutStr' (getCoreWindow as) str $> rs
 printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getCoreWindow as) ch  $> rs
 printNCurses (VLine ch n) rs@(RActive as)   = nVerticalLine'   (getCoreWindow as) ch n $> rs
 printNCurses (HLine ch n) rs@(RActive as)   = nHorizontalLine' (getCoreWindow as) ch n $> rs
 
-partial
+drawBorder : HasIO io => Maybe RuntimeBorder -> io ()
+drawBorder x = ?drawBorder_rhs
+
 runNCurses : HasIO io => NCurses a s1 s2 -> RuntimeCurses s1 -> io (a, RuntimeCurses s2)
 runNCurses (Pure x) rs = pure (x, rs)
 runNCurses (Bind x f) rs = do
@@ -841,16 +910,18 @@ runNCurses Init RInactive = Prelude.do
   noDelay False
   win <- stdWindow
   keyMap <- SpecialKey.keyMap
-  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow win] (initRuntimeWindow Window.defaultWindow win ** Here) [] {csPrf=Refl} keyMap)
+  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow Nothing win] (initRuntimeWindow Window.defaultWindow Nothing win ** Here) [] {csPrf=Refl} keyMap)
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure ((), RInactive)
 ----
-runNCurses (AddWindow @{isActive} name pos size) (RActive as) = Prelude.do
+runNCurses (AddWindow @{isActive} name pos size border) rs@(RActive as) = Prelude.do
   runtimeWin <- newWindow size.rows size.cols pos.row pos.col
   keypad' runtimeWin True
   noDelay' runtimeWin False
-  let as' = addRuntimeWindow name runtimeWin as
+  let b = runtimeBorder rs <$> border
+  drawBorder b
+  let as' = addRuntimeWindow name b runtimeWin as
   pure ((), RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
 runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
@@ -864,16 +935,19 @@ runNCurses (AddColor name fg bg) (RActive as) = do
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure ((), rs')
+-- TODO: probably redraw the window border after clear and erase
 runNCurses Clear   rs@(RActive as) = clear'   (getCoreWindow as) $> ((), rs)
 runNCurses Erase   rs@(RActive as) = erase'   (getCoreWindow as) $> ((), rs)
 runNCurses Refresh rs@(RActive as) = refresh' (getCoreWindow as) $> ((), rs)
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
+-- TODO: make border affect the position retrieved with GetPos
 runNCurses GetPos rs@(RActive as) = do
   let win = getCoreWindow as
   pure (MkPosition !(getYPos' win) !(getXPos' win), rs)
 runNCurses (SetSize size) rs@(RActive as) = setWindowSize (getCoreWindow as) size.cols size.rows $> ((), rs)
+-- TODO: make border affect the size retrieved with GetSize
 runNCurses GetSize rs@(RActive as) = do
   size <- (uncurry MkSize) <$> getMaxSize' (getCoreWindow as)
   pure (size, rs)
@@ -882,8 +956,8 @@ runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> ((),
 runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> ((), setRuntimeKeypad on $ RActive as)
 runNCurses (SetNoDelay on) (RActive as) = noDelay' (getCoreWindow as) on $> ((), setRuntimeNoDelay on $ RActive as)
 runNCurses (SetCursor c) rs = setCursorVisibility c $> ((), rs)
-runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _) ** wPrf) colors keyMap)) with 0 (w)
-  runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _) ** wPrf) colors keyMap)) | (w' ** e') =
+runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _ _) ** wPrf) colors keyMap)) with 0 (w)
+  runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (MkWindow _ keypad noDelay) _ _) ** wPrf) colors keyMap)) | (w' ** e') =
     rewrite sym $ currentWindowPropsPrf e' wPrf in
       if noDelay
          then if keypad
