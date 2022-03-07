@@ -6,10 +6,10 @@ import NCurses.Core.Attribute
 import NCurses.Core.SpecialKey
 import NCurses.Core.Input
 import Control.Monad.State
-import Data.DPair
 import Data.Either
 import Data.List
 
+import public Data.DPair
 import public Data.List.Elem
 import public NCurses.Core.Color as Color
 import public NCurses.Core.Input as Input
@@ -890,8 +890,12 @@ printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getCoreWindow as) ch  $>
 printNCurses (VLine ch n) rs@(RActive as)   = nVerticalLine'   (getCoreWindow as) ch n $> rs
 printNCurses (HLine ch n) rs@(RActive as)   = nHorizontalLine' (getCoreWindow as) ch n $> rs
 
-drawBorder : HasIO io => Maybe RuntimeBorder -> io ()
-drawBorder x = ?drawBorder_rhs
+drawBorder : HasIO io => Core.Window -> Maybe RuntimeBorder -> io ()
+drawBorder _ Nothing = pure ()
+drawBorder win (Just (cp, (Evidence _ border))) = do
+  nWindowBorder win border.left border.right border.top border.bottom
+                    border.topLeft border.topRight border.bottomLeft border.bottomRight
+  refresh' win
 
 runNCurses : HasIO io => NCurses a s1 s2 -> RuntimeCurses s1 -> io (a, RuntimeCurses s2)
 runNCurses (Pure x) rs = pure (x, rs)
@@ -920,7 +924,7 @@ runNCurses (AddWindow @{isActive} name pos size border) rs@(RActive as) = Prelud
   keypad' runtimeWin True
   noDelay' runtimeWin False
   let b = runtimeBorder rs <$> border
-  drawBorder b
+  drawBorder runtimeWin b
   let as' = addRuntimeWindow name b runtimeWin as
   pure ((), RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)

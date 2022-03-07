@@ -51,9 +51,10 @@ run = Indexed.Do.do
   addColor "green" Green Black
   addColor "white" White Black
   setCursor CInvisible
-  addWindow "header" (MkPosition centerY     centerX) (MkSize 1 (length instructions))
-  addWindow "ticker" (MkPosition (S centerY) centerX) (MkSize 1 (length instructions))
+  addWindow "header" (MkPosition centerY     centerX) (MkSize 1 (length instructions)) Nothing
+  addWindow "ticker" (MkPosition (S centerY) centerX) (MkSize 1 (length instructions)) Nothing
   clear
+  addWindow "box"    (MkPosition (centerY `minus` 1) (centerX `minus` 2)) (MkSize 4 ((length instructions) + 3)) (defaultBorder "white")
   setWindow "header"
   putStrLn instructions
   refresh
