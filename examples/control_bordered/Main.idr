@@ -22,6 +22,8 @@ run = Indexed.Do.do
   putStrLn "a"
   putStrLn "b"
   putStrLn "c"
+  move (MkPosition 3 4)
+  putStr "hello you"
   addWindow "snd" (MkPosition 9 0) (MkSize 8 4) (border "red" (Custom '{') (Custom '}') (Custom '=') (Custom '-') (Custom '*') (Custom '#') (Custom '+') (Custom '/'))
   setWindow "snd"
   putStrLn "a"

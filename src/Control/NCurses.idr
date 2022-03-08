@@ -936,7 +936,9 @@ printNCurses (Move (MkPosition row col)) rs@(RActive as) =
 printNCurses (PutStr newline str) rs@(RActive as) = do
   let win = getCoreWindow as
   (_, fullWidth) <- getMaxSize' win
-  nPutStr' win (wrapText fullWidth str) $> rs
+  col <- getXPos' win
+  let col' = (if currentWindowHasBorder as then (pred col) else col)
+  nPutStr' win (wrapText fullWidth col' str) $> rs
   where
     winWidth : Nat -> (k ** NonZero k)
     winWidth n =
@@ -958,10 +960,10 @@ printNCurses (PutStr newline str) rs@(RActive as) = do
     chunk z 0     (x :: xs) acc       acc2 = assert_total $ chunk z z (x :: xs) [<] (acc2 :< (pack $ cast acc))
     chunk z (S k) (x :: xs) acc       acc2 = chunk z k xs (acc :< x) acc2
 
-    wrapText : (fullWidth : Nat) -> String -> String
-    wrapText w s =
+    wrapText : (fullWidth : Nat) -> (currentColumn : Nat) -> String -> String
+    wrapText w c s =
       let (width ** _) = winWidth w
-          splitText = chunk width width (unpack s) [<] [<]
+          splitText = chunk width (width `minus` c) (unpack s) [<] [<]
           allTxt = concat (intersperse lineInfix splitText)
           final = if newline then allTxt ++ lineInfix else allTxt
       in  final
