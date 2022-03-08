@@ -1035,14 +1035,16 @@ runNCurses (ModAttr cmd) rs = do
   pure ((), rs')
 runNCurses Clear rs@(RActive as) = do
   let win = getCoreWindow as
---   when (currentWindowHasBorder as) $ -- offset cursor to just inside the border.
---     nMoveCursor' win 1 1
-  clear' win $> ((), rs)
+  clear' win
+  when (currentWindowHasBorder as) $ -- offset cursor to just inside the border.
+    nMoveCursor' win 1 1
+  pure ((), rs)
 runNCurses Erase   rs@(RActive as) = do
   let win = getCoreWindow as
---   when (currentWindowHasBorder as) $ -- offset cursor to just inside the border.
---     nMoveCursor' win 1 1
-  erase' win $> ((), rs)
+  erase' win
+  when (currentWindowHasBorder as) $ -- offset cursor to just inside the border.
+    nMoveCursor' win 1 1
+  pure ((), rs)
 runNCurses Refresh rs@(RActive as) =
   let win = getCoreWindow as
   in  drawCurrentBorder as *> refresh' win $> ((), rs)

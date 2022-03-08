@@ -20,6 +20,7 @@ run = Indexed.Do.do
   addWindow "fst" (MkPosition 0 0) (MkSize 9 8) (defaultBorder "green")
   setWindow "fst"
   putStrLn "a"
+  erase
   putStrLn "b"
   putStrLn "c"
   move (MkPosition 3 4)
