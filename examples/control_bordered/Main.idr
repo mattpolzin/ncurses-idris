@@ -17,14 +17,16 @@ run = Indexed.Do.do
   clear
   addColor "green" Green Black
   addColor "red" Black Red
-  addWindow "fst" (MkPosition 0 0) (MkSize 8 8) (defaultBorder "green")
+  addWindow "fst" (MkPosition 0 0) (MkSize 9 8) (defaultBorder "green")
   setWindow "fst"
   putStrLn "a"
   putStrLn "b"
   putStrLn "c"
   move (MkPosition 3 4)
   putStr "hello you"
-  addWindow "snd" (MkPosition 9 0) (MkSize 8 4) (border "red" (Custom '{') (Custom '}') (Custom '=') (Custom '-') (Custom '*') (Custom '#') (Custom '+') (Custom '/'))
+  putStr " more text."
+  addWindow "snd" (MkPosition 10 0) (MkSize 8 4) (border "red" (Custom '{') (Custom '}') (Custom '=') (Custom '-')
+                                                               (Custom '*') (Custom '#') (Custom '+') (Custom '/'))
   setWindow "snd"
   putStrLn "a"
   putStrLn "bcd"
