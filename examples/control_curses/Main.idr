@@ -27,7 +27,7 @@ prettyDoc =
 run : NCurses () Inactive Inactive
 run = Indexed.Do.do
   init
-  addWindow "main" (MkPosition 0 0) (MkSize 35 45)
+  addWindow "main" (MkPosition 0 0) (MkSize 35 45) Nothing
   setWindow "main"
   addColor "inverse" Black White
   addColor "alert" White Red
@@ -41,7 +41,7 @@ run = Indexed.Do.do
   putStr "THIS IS NOT A PROBLEM"
   setAttr Normal
   putStrLn "\n\nEnd of initial transmission."
-  addWindow "win1" (MkPosition 35 55) (MkSize 20 30)
+  addWindow "win1" (MkPosition 35 55) (MkSize 20 30) Nothing
   setWindow "win1"
   clear
   setAttr (Color "inverse")
