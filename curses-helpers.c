@@ -1,5 +1,5 @@
 
-#include "helpers.h"
+#include "curses-helpers.h"
 #include<ncurses.h>
 
 WINDOW* std_win() {
