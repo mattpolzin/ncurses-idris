@@ -43,6 +43,11 @@ jobs:
           cd examples/control_pumpkin
           make
           cd -
+      - name: Build borders example
+        run: |
+          cd examples/control_bordered
+          make
+          cd -
       - name: Build timed example
         run: |
           cd examples/timed
