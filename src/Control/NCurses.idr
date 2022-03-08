@@ -383,22 +383,34 @@ namespace Input
   -- it does allow for the following functions to be used.
   namespace Char
     export
-    getChar : IsActive s => NoKeypad s => YesDelay s => NCurses Char s s
+    getChar : IsActive s =>
+              NoKeypad s =>
+              YesDelay s =>
+              NCurses Char s s
     getChar @{act} @{ItIsNoKeypad} @{ItIsDelay} = GetCh
 
     namespace NotDelayed
       export
-      getChar : IsActive s => NoKeypad s => NoDelay s => NCurses (Maybe Char) s s
+      getChar : IsActive s =>
+                NoKeypad s =>
+                NoDelay  s =>
+                NCurses (Maybe Char) s s
       getChar @{act} @{ItIsNoKeypad} @{ItIsNoDelay} = GetCh
 
   namespace Keypad
     export
-    getKeyOrChar : IsActive s => YesKeypad s => YesDelay s => NCurses (Either Char Key) s s
+    getKeyOrChar : IsActive  s =>
+                   YesKeypad s =>
+                   YesDelay  s =>
+                   NCurses (Either Char Key) s s
     getKeyOrChar @{act} @{ItIsKeypad} @{ItIsDelay} = GetCh
 
     namespace NotDelayed
       export
-      getKeyOrChar : IsActive s => YesKeypad s => NoDelay s => NCurses (Maybe (Either Char Key)) s s
+      getKeyOrChar : IsActive  s =>
+                     YesKeypad s =>
+                     NoDelay   s =>
+                     NCurses (Maybe (Either Char Key)) s s
       getKeyOrChar @{act} @{ItIsKeypad} @{ItIsNoDelay} = GetCh
 
 --
@@ -498,7 +510,9 @@ getColor (z :: zs) csPrf Here = snd z
 getColor [] csPrf (There elemPrf) impossible
 getColor (z :: zs) csPrf (There elemPrf) = getColor zs (snd $ keysInjective csPrf) elemPrf
 
-getWindow : IdentifiesWindow n ws => (rws : RuntimeWindows ws) -> (rw ** CurrentWindow rw (lookupWindowPrf n ws) rws)
+getWindow : IdentifiesWindow n ws =>
+            (rws : RuntimeWindows ws)
+         -> (rw ** CurrentWindow rw (lookupWindowPrf n ws) rws)
 getWindow @{Here} (rw@(MkRuntimeWindow (MkWindow n _ _) b win) :: rws') = (rw ** Here)
 getWindow @{There e} (rw'@(MkRuntimeWindow (MkWindow identifier keypad noDelay) border win) :: rws') =
   bimap id There $ getWindow @{e} rws'
@@ -534,7 +548,10 @@ runtimeBorder rs@(RActive as) (Evidence color (border, (ItHasColor @{elem}))) =
   let cp = getColor as.colors as.csPrf elem
   in  (cp, Evidence color border)
 
-addRuntimeColor : (name : String) -> (cp : ColorPair) -> CursesActive ws w cs -> CursesActive ws w (name :: cs)
+addRuntimeColor : (name : String)
+               -> (cp : ColorPair)
+               -> CursesActive ws w cs
+               -> CursesActive ws w (name :: cs)
 addRuntimeColor name cp (MkCursesActive windows currentWindow colors currentColor {csPrf} keyMap) =
   MkCursesActive { windows
                  , currentWindow
@@ -544,7 +561,9 @@ addRuntimeColor name cp (MkCursesActive windows currentWindow colors currentColo
                  , keyMap
                  }
 
-setRuntimeWindow : IdentifiesWindow name ws -> CursesActive ws w cs -> CursesActive ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
+setRuntimeWindow : IdentifiesWindow name ws
+                -> CursesActive ws w cs
+                -> CursesActive ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
 setRuntimeWindow elem (MkCursesActive windows currentWindow colors {csPrf} currentColor keyMap) =
   MkCursesActive { windows
                  , currentWindow = getWindow @{elem} windows
@@ -560,14 +579,23 @@ getCoreWindow (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ _ _)
 getCoreWindow' : IsActive s => RuntimeCurses s -> Core.Window
 getCoreWindow' (RActive as) = getCoreWindow as
 
-swapKeypad' : {0 origW : State.Window} -> {0 origWs : List State.Window} -> {0 e : Elem origW origWs} -> (on : Bool) -> {rw : _} -> (rws : RuntimeWindows origWs) -> CurrentWindow rw e rws -> (rws' : RuntimeWindows (swapKeypad on origWs e) ** CurrentWindow (setRWKeypad on rw) (swapKeypadPrf on origWs e) rws')
+swapKeypad' : {0 origW : State.Window}
+           -> {0 origWs : List State.Window}
+           -> {0 e : Elem origW origWs}
+           -> (on : Bool)
+           -> {rw : _}
+           -> (rws : RuntimeWindows origWs)
+           -> CurrentWindow rw e rws
+           -> (rws' : RuntimeWindows (swapKeypad on origWs e) ** CurrentWindow (setRWKeypad on rw) (swapKeypadPrf on origWs e) rws')
 swapKeypad' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) b _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) b _) :: rws) Here =
   ((MkRuntimeWindow (MkWindow identifier on noDelay) b _) :: rws ** Here)
 swapKeypad' on {rw = (MkRuntimeWindow (MkWindow y z w) b win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} x) =
     let (rws'' ** rw') = swapKeypad' on {rw=MkRuntimeWindow (MkWindow y z w) b win} rws' x
     in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} rw')
 
-setRuntimeKeypad : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setKeypad (Active i ws w cs) on)
+setRuntimeKeypad : (on : Bool)
+                -> RuntimeCurses (Active i ws w cs)
+                -> RuntimeCurses (setKeypad (Active i ws w cs) on)
 setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} currentColor keyMap)) = 
   let (windows' ** rw') = swapKeypad' on windows wPrf
   in
@@ -580,14 +608,23 @@ setRuntimeKeypad on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf}
                    , keyMap
                    }
 
-swapNoDelay' : {0 origW : State.Window} -> {0 origWs : List State.Window} -> {0 e : Elem origW origWs} -> (on : Bool) -> {rw : _} -> (rws : RuntimeWindows origWs) -> CurrentWindow rw e rws -> (rws' : RuntimeWindows (swapNoDelay on origWs e) ** CurrentWindow (setRWNoDelay on rw) (swapNoDelayPrf on origWs e) rws')
+swapNoDelay' : {0 origW : State.Window}
+            -> {0 origWs : List State.Window}
+            -> {0 e : Elem origW origWs}
+            -> (on : Bool)
+            -> {rw : _}
+            -> (rws : RuntimeWindows origWs)
+            -> CurrentWindow rw e rws
+            -> (rws' : RuntimeWindows (swapNoDelay on origWs e) ** CurrentWindow (setRWNoDelay on rw) (swapNoDelayPrf on origWs e) rws')
 swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow identifier keypad noDelay) b _)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) b _) :: rws) Here =
   ((MkRuntimeWindow (MkWindow identifier keypad on) b _) :: rws ** Here)
 swapNoDelay' on {rw = (MkRuntimeWindow (MkWindow y z w) b win)} ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws') (There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} x) =
     let (rws'' ** rw') = swapNoDelay' on {rw=MkRuntimeWindow (MkWindow y z w) b win} rws' x
     in  ((MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther) :: rws'' ** There {other=(MkRuntimeWindow (MkWindow identifier keypad noDelay) border winOther)} rw')
 
-setRuntimeNoDelay : (on : Bool) -> RuntimeCurses (Active i ws w cs) -> RuntimeCurses (setNoDelay (Active i ws w cs) on)
+setRuntimeNoDelay : (on : Bool)
+                 -> RuntimeCurses (Active i ws w cs)
+                 -> RuntimeCurses (setNoDelay (Active i ws w cs) on)
 setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf} currentColor keyMap)) =
   let (windows' ** rw') = swapNoDelay' on windows wPrf
   in
@@ -642,9 +679,9 @@ modNCursesAttr : HasIO io =>
                  AttrCmd s
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
-modNCursesAttr (SetAttr attr) rs =
+modNCursesAttr (SetAttr     attr) rs =
   nSetAttr'     (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
-modNCursesAttr (EnableAttr attr) rs =
+modNCursesAttr (EnableAttr  attr) rs =
   nEnableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (DisableAttr attr) rs =
   nDisableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
@@ -654,17 +691,22 @@ printNCurses : HasIO io =>
                OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
+printNCurses (PutCh ch) rs   = nPutCh'          (getCoreWindow' rs) ch   $> rs
+printNCurses (VLine ch n) rs = nVerticalLine'   (getCoreWindow' rs) ch n $> rs
+printNCurses (HLine ch n) rs = nHorizontalLine' (getCoreWindow' rs) ch n $> rs
+
 printNCurses (Move (MkPosition row col)) rs@(RActive as) =
   nMoveCursor' (getCoreWindow as) (offset row) (offset col) $> rs
   where
     offset : Nat -> Nat
     offset x = if (currentWindowHasBorder as) then (S x) else x
+
 printNCurses (PutStr newline str) rs@(RActive as) = do
-  let win = getCoreWindow as
-  (_, fullWidth) <- getMaxSize' win
-  col <- getXPos' win
-  let col' = (if currentWindowHasBorder as then (pred col) else col)
-  nPutStr' win (wrapText fullWidth col' str) $> rs
+    let win = getCoreWindow as
+    (_, fullWidth) <- getMaxSize' win
+    col <- getXPos' win
+    let col' = (if currentWindowHasBorder as then (pred col) else col)
+    nPutStr' win (wrapText fullWidth col' str) $> rs
   where
     winWidth : Nat -> (k ** NonZero k)
     winWidth n =
@@ -693,9 +735,6 @@ printNCurses (PutStr newline str) rs@(RActive as) = do
           allTxt = concat (intersperse lineInfix splitText)
           final = if newline then allTxt ++ lineInfix else allTxt
       in  final
-printNCurses (PutCh ch) rs   = nPutCh'          (getCoreWindow' rs) ch   $> rs
-printNCurses (VLine ch n) rs = nVerticalLine'   (getCoreWindow' rs) ch n $> rs
-printNCurses (HLine ch n) rs = nHorizontalLine' (getCoreWindow' rs) ch n $> rs
 
 drawBorder : HasIO io => Core.Window -> (currentColor : Maybe ColorPair) -> Maybe RuntimeBorder -> io ()
 drawBorder _ _ Nothing = pure ()
@@ -713,7 +752,8 @@ drawCurrentBorder (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ 
 
 refreshAllRuntime : HasIO io => RuntimeWindows ws -> (currentColor : Maybe ColorPair) -> io ()
 refreshAllRuntime [] _ = pure ()
-refreshAllRuntime ((MkRuntimeWindow _ border win) :: ws) currentColor = drawBorder win currentColor border *> refresh' win *> refreshAllRuntime ws currentColor
+refreshAllRuntime ((MkRuntimeWindow _ border win) :: ws) currentColor =
+  drawBorder win currentColor border *> refresh' win *> refreshAllRuntime ws currentColor
 
 runNCurses : HasIO io => NCurses a s1 s2 -> RuntimeCurses s1 -> io (a, RuntimeCurses s2)
 runNCurses (Pure x) rs = pure (x, rs)
@@ -732,7 +772,12 @@ runNCurses Init RInactive = Prelude.do
   noDelay False
   win <- stdWindow
   keyMap <- SpecialKey.keyMap
-  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow Nothing win] (initRuntimeWindow Window.defaultWindow Nothing win ** Here) [] {csPrf=Refl} Nothing keyMap)
+  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow Nothing win]
+                                     (initRuntimeWindow Window.defaultWindow Nothing win ** Here)
+                                     []
+                                     {csPrf=Refl}
+                                     Nothing
+                                     keyMap)
 runNCurses DeInit (RActive _) = do
   deinitNCurses
   pure ((), RInactive)
@@ -750,15 +795,6 @@ runNCurses (AddWindow @{isActive} name pos size border) rs@(RActive as) = Prelud
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
 runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
 ----
-runNCurses (AddColor name fg bg) (RActive as) = do
-  let nextIdx = length as.colors
-  when (nextIdx == 0) startColor
-  cp <- initColorPair nextIdx fg bg
-  let as' = addRuntimeColor name cp as
-  pure ((), RActive as')
-runNCurses (ModAttr cmd) rs = do
-  rs' <- modNCursesAttr cmd rs
-  pure ((), rs')
 runNCurses Clear rs@(RActive as) = do
   let win = getCoreWindow as
   clear' win
@@ -779,6 +815,16 @@ runNCurses RefreshAll rs@(RActive (MkCursesActive windows _ _ currentColor _)) =
   refresh *>
   -- followed by all others:
   refreshAllRuntime windows currentColor $> ((), rs)
+----
+runNCurses (AddColor name fg bg) (RActive as) = do
+  let nextIdx = length as.colors
+  when (nextIdx == 0) startColor
+  cp <- initColorPair nextIdx fg bg
+  let as' = addRuntimeColor name cp as
+  pure ((), RActive as')
+runNCurses (ModAttr cmd) rs = do
+  rs' <- modNCursesAttr cmd rs
+  pure ((), rs')
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
