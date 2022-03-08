@@ -1,10 +1,10 @@
 module NCurses.Core
 
 libncurses : String -> String
-libncurses fn = "C:" ++ fn ++ ",libncurses"
+libncurses fn = "C:" ++ fn ++ ",libncurses,ncurses.h"
 
 libhelper : String -> String
-libhelper fn = "C:" ++ fn ++ ",libncurses-idris"
+libhelper fn = "C:" ++ fn ++ ",libncurses-idris,curses-helpers.h"
 
 %foreign libhelper "ncurses_err"
 prim__err : PrimIO Int

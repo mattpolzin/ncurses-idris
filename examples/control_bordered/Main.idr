@@ -18,7 +18,15 @@ run = Indexed.Do.do
   addColor "green" Green Black
   addColor "red" Black Red
   addWindow "fst" (MkPosition 0 0) (MkSize 8 8) (defaultBorder "green")
+  setWindow "fst"
+  putStrLn "a"
+  putStrLn "b"
+  putStrLn "c"
   addWindow "snd" (MkPosition 9 0) (MkSize 8 4) (border "red" (Custom '{') (Custom '}') (Custom '=') (Custom '-') (Custom '*') (Custom '#') (Custom '+') (Custom '/'))
+  setWindow "snd"
+  putStrLn "a"
+  putStrLn "bcd"
+  unsetWindow
   refreshAll
   loop
   deinit

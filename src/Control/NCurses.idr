@@ -8,6 +8,9 @@ import NCurses.Core.Input
 import Control.Monad.State
 import Data.Either
 import Data.List
+import Data.Maybe
+import Data.Nat
+import Data.String
 
 import public Data.DPair
 import public Data.List.Elem
@@ -266,7 +269,7 @@ namespace Output
   public export
   data OutputCmd : CursesState -> Type where
     PutCh  : Char -> OutputCmd s
-    PutStr : String -> OutputCmd s
+    PutStr : (newline : Bool) -> String -> OutputCmd s
     VLine  : Char -> Nat -> OutputCmd s
     HLine  : Char -> Nat -> OutputCmd s
     Move   : Position -> OutputCmd s
@@ -341,7 +344,9 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (setKeypad s on)
   SetSize     : IsActive s => Size -> NCurses () s s
   GetPos      : IsActive s => NCurses Position s s
-  GetSize     : IsActive s => NCurses Size s s
+  ||| Get the size of the current window. If `internal` is @True@, then
+  ||| will subtract the space taken up by any border a window has.
+  GetSize     : IsActive s => (internal : Bool) -> NCurses Size s s
   GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s s
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
@@ -485,8 +490,14 @@ getPos : IsActive s => NCurses Position s s
 getPos = GetPos
 
 ||| Get the size of the current window.
+|||
+||| @ internal If @True@, the size will not include the space
+|||            taken up by any internal border the window has
+|||            applied to it. If @False@, the size will always
+|||            be the space taken up by the window, not the space
+|||            available inside the window.
 export
-getSize : IsActive s => NCurses Size s s
+getSize : IsActive s => (internal : Bool) -> NCurses Size s s
 getSize = GetSize
 
 ||| Set the size of the current window.
@@ -558,12 +569,12 @@ namespace Output
   ||| Print a string to the terminal _without_ a trailing newline.
   export
   putStr : IsActive s => String -> NCurses () s s
-  putStr = Output . PutStr
+  putStr = Output . PutStr False
 
   ||| Print a string to the terminal _with_ a trailing newline.
   export
   putStrLn : IsActive s => String -> NCurses () s s
-  putStrLn = Output . PutStr . (++ "\n")
+  putStrLn = Output . PutStr True
 
   ||| Draw a vertical line to the current window comprised of the given
   ||| character and having the given length.
@@ -900,6 +911,8 @@ maybeUnsetCurrentColor (Color _) (RActive (MkCursesActive windows currentWindow 
   RActive (MkCursesActive windows currentWindow colors {csPrf} Nothing keyMap)
 maybeUnsetCurrentColor _ rs = rs
 
+currentWindowHasBorder : CursesActive ws w cs -> Bool
+currentWindowHasBorder (MkCursesActive _ ((MkRuntimeWindow _ border _) ** _) _ _ _) = isJust border
 
 modNCursesAttr : HasIO io =>
                  IsActive s =>
@@ -915,9 +928,43 @@ printNCurses : HasIO io =>
                OutputCmd s
             -> RuntimeCurses s
             -> io (RuntimeCurses s)
--- TODO: make the border affect position moved to
-printNCurses (Move (MkPosition row col)) rs@(RActive as) = nMoveCursor' (getCoreWindow as) row col $> rs
-printNCurses (PutStr str) rs@(RActive as)   = nPutStr' (getCoreWindow as) str $> rs
+printNCurses (Move (MkPosition row col)) rs@(RActive as) =
+  nMoveCursor' (getCoreWindow as) (offset row) (offset col) $> rs
+  where
+    offset : Nat -> Nat
+    offset x = if (currentWindowHasBorder as) then (S x) else x
+printNCurses (PutStr newline str) rs@(RActive as) = do
+  let win = getCoreWindow as
+  (_, fullWidth) <- getMaxSize' win
+  nPutStr' win (wrapText fullWidth str) $> rs
+  where
+    winWidth : Nat -> (k ** NonZero k)
+    winWidth n =
+      let w = if currentWindowHasBorder as then (n `minus` 2) else n
+      in  case w of 0 => (1 ** %search); (S w') => ((S w') ** %search)
+
+    lineInfix : String
+    lineInfix = if currentWindowHasBorder as then "\n " else "\n"
+
+    chunk : (chunkSize : Nat)
+         -> NonZero chunkSize =>
+            (countdown : Nat)
+         -> (rem : List Char)
+         -> (acc : SnocList Char)
+         -> (acc2 : SnocList String)
+         -> List String
+    chunk z _     []        [<]       acc2 = cast acc2
+    chunk z _     []        (sx :< x) acc2 = cast $ (acc2 :< (pack $ cast (sx :< x)))
+    chunk z 0     (x :: xs) acc       acc2 = assert_total $ chunk z z (x :: xs) [<] (acc2 :< (pack $ cast acc))
+    chunk z (S k) (x :: xs) acc       acc2 = chunk z k xs (acc :< x) acc2
+
+    wrapText : (fullWidth : Nat) -> String -> String
+    wrapText w s =
+      let (width ** _) = winWidth w
+          splitText = chunk width width (unpack s) [<] [<]
+          allTxt = concat (intersperse lineInfix splitText)
+          final = if newline then allTxt ++ lineInfix else allTxt
+      in  final
 printNCurses (PutCh ch) rs@(RActive as)     = nPutCh'  (getCoreWindow as) ch  $> rs
 printNCurses (VLine ch n) rs@(RActive as)   = nVerticalLine'   (getCoreWindow as) ch n $> rs
 printNCurses (HLine ch n) rs@(RActive as)   = nHorizontalLine' (getCoreWindow as) ch n $> rs
@@ -969,6 +1016,8 @@ runNCurses (AddWindow @{isActive} name pos size border) rs@(RActive as) = Prelud
   let b = runtimeBorder rs <$> border
   drawBorder runtimeWin as.currentColor b
   let as' = addRuntimeWindow name b runtimeWin as
+  when (isJust b) $ -- offset cursor to just inside the border.
+    nMoveCursor' runtimeWin 1 1
   pure ((), RActive as')
 runNCurses (SetWindow   @{_} name @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
 runNCurses (UnsetWindow @{_}      @{ItHasWindow @{elem}}) (RActive as) = pure ((), RActive $ setRuntimeWindow elem as)
@@ -982,12 +1031,16 @@ runNCurses (AddColor name fg bg) (RActive as) = do
 runNCurses (ModAttr cmd) rs = do
   rs' <- modNCursesAttr cmd rs
   pure ((), rs')
-runNCurses Clear   rs@(RActive as) =
+runNCurses Clear rs@(RActive as) = do
   let win = getCoreWindow as
-  in  clear' win $> ((), rs)
-runNCurses Erase   rs@(RActive as) =
+--   when (currentWindowHasBorder as) $ -- offset cursor to just inside the border.
+--     nMoveCursor' win 1 1
+  clear' win $> ((), rs)
+runNCurses Erase   rs@(RActive as) = do
   let win = getCoreWindow as
-  in  erase' win $> ((), rs)
+--   when (currentWindowHasBorder as) $ -- offset cursor to just inside the border.
+--     nMoveCursor' win 1 1
+  erase' win $> ((), rs)
 runNCurses Refresh rs@(RActive as) =
   let win = getCoreWindow as
   in  drawCurrentBorder as *> refresh' win $> ((), rs)
@@ -999,15 +1052,17 @@ runNCurses RefreshAll rs@(RActive (MkCursesActive windows _ _ currentColor _)) =
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
--- TODO: make border affect the position retrieved with GetPos
-runNCurses GetPos rs@(RActive as) = do
+runNCurses GetPos rs@(RActive as@(MkCursesActive _ ((MkRuntimeWindow _ border _) ** _) _ _ _)) = do
   let win = getCoreWindow as
-  pure (MkPosition !(getYPos' win) !(getXPos' win), rs)
+  y <- getYPos' win
+  x <- getXPos' win
+  let offset : Nat -> Nat = (\coord => if isJust border then (pred coord) else coord)
+  pure (MkPosition (offset y) (offset x), rs)
 runNCurses (SetSize size) rs@(RActive as) = setWindowSize (getCoreWindow as) size.cols size.rows $> ((), rs)
--- TODO: make border affect the size retrieved with GetSize
-runNCurses GetSize rs@(RActive as) = do
-  size <- (uncurry MkSize) <$> getMaxSize' (getCoreWindow as)
-  pure (size, rs)
+runNCurses (GetSize internal) rs@(RActive as@(MkCursesActive _ ((MkRuntimeWindow _ border _) ** _) _ _ _)) = do
+  (rows, cols) <- getMaxSize' (getCoreWindow as)
+  let offset : Nat -> Nat = (\dim => if isJust border && internal then (dim `minus` 2) else dim)
+  pure (MkSize (offset rows) (offset cols), rs)
 runNCurses (SetEcho on) (RActive as) = (ifThenElse on echo noEcho) $> ((), RActive as)
 runNCurses (SetCBreak on) (RActive as) = (ifThenElse on cBreak noCBreak) $> ((), RActive as)
 runNCurses (SetKeypad on) (RActive as) = keypad' (getCoreWindow as) on $> ((), setRuntimeKeypad on $ RActive as)
