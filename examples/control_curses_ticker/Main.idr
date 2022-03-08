@@ -45,7 +45,7 @@ loop n = do
 run : NCurses () Inactive Inactive
 run = Indexed.Do.do
   init
-  (MkSize rows cols) <- getSize
+  (MkSize rows cols) <- getSize True
   let centerX = (cols `div` 2) `minus` ((length instructions) `div` 2)
   let centerY = (rows `div` 2)
   addColor "green" Green Black
