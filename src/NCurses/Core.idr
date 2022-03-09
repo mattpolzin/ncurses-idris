@@ -1,10 +1,10 @@
 module NCurses.Core
 
 libncurses : String -> String
-libncurses fn = "C:" ++ fn ++ ",libncurses"
+libncurses fn = "C:" ++ fn ++ ",libncurses,ncurses.h"
 
 libhelper : String -> String
-libhelper fn = "C:" ++ fn ++ ",libncurses-idris"
+libhelper fn = "C:" ++ fn ++ ",libncurses-idris,curses-helpers.h"
 
 %foreign libhelper "ncurses_err"
 prim__err : PrimIO Int
@@ -86,6 +86,15 @@ prim__horizontalLine : Char -> Int -> PrimIO ()
 
 %foreign libncurses "whline"
 prim__horizontalLineWindow : AnyPtr -> Char -> Int -> PrimIO ()
+
+||| Draw a window border with the given chars used for the
+||| left, right, top, and bottom edges as well as the given
+||| top left, top right, bottom left, and bottom right corners.
+%foreign libncurses "wborder"
+prim__borderWindow : AnyPtr
+                  -> (l : Char)  -> (r : Char)  -> (t : Char)  -> (b : Char)
+                  -> (tl : Char) -> (tr : Char) -> (bl : Char) -> (br : Char)
+                  -> PrimIO ()
 
 %foreign libncurses "move"
 prim__move : Int -> Int -> PrimIO ()
@@ -171,6 +180,11 @@ refresh' (Win win) = primIO $ prim__refreshWindow win
 ||| process that allows NCurses to intelligently determine how
 ||| much of the terminal view needs to be redrawn.
 |||
+||| Clearing the standard window will require refreshing all
+||| windows after the next call to refresh the standard window,
+||| It probably makes sense much of the time to refresh immediately
+||| after a call to clear.
+|||
 ||| See @clear'@ to clear any other window.
 export
 clear : HasIO io => io ()
@@ -182,6 +196,11 @@ clear = primIO $ prim__clear
 ||| the next call to refresh. See @erase@ for a less intensive
 ||| process that allows NCurses to intelligently determine how
 ||| much of the terminal view needs to be redrawn.
+|||
+||| Clearing the standard window will require refreshing all
+||| windows after the next call to refresh the standard window,
+||| It probably makes sense much of the time to refresh immediately
+||| after a call to clear.
 export
 clear' : HasIO io => Window -> io ()
 clear' (Win win) = primIO $ prim__clearWindow win
@@ -255,6 +274,47 @@ nHorizontalLine ch n = primIO $ prim__horizontalLine ch (cast n)
 export
 nHorizontalLine' : HasIO io => Window -> Char -> Nat -> io ()
 nHorizontalLine' (Win win) ch n = primIO $ prim__horizontalLineWindow win ch (cast n)
+
+||| Border characters can either be the default or they can be specified
+||| by you. There are different defaults for left/right, top/bottom, and corner characters.
+public export
+data BorderChar = Custom Char | Default
+
+||| Draw a border around the given window.
+||| Use the given characters for each edge and corner of the border.
+||| Specify @Default@ for any character for which you want to use the
+||| default.
+|||
+||| The border will use the current background/foreground colors.
+|||
+||| The border will be drawn _inside_ the given window.
+export
+nWindowBorder : HasIO io =>
+                Window
+             -> (left   : BorderChar)
+             -> (right  : BorderChar)
+             -> (top    : BorderChar)
+             -> (bottom : BorderChar)
+             -> (topLeft     : BorderChar)
+             -> (topRight    : BorderChar)
+             -> (bottomLeft  : BorderChar)
+             -> (bottomRight : BorderChar)
+             -> io ()
+nWindowBorder (Win win) left right top bottom topLeft topRight bottomLeft bottomRight =
+  primIO $ prim__borderWindow win (b left) (b right) (b top) (b bottom)
+                                  (b topLeft) (b topRight) (b bottomLeft) (b bottomRight)
+  where
+    b : BorderChar -> Char
+    b (Custom ch) = ch
+    b Default = (cast 0)
+
+||| Draw the default window border for the given window. This is
+||| equivalent to calling @nWindowBorder@ with all border characters
+||| set to @Default@.
+export
+nDefaultWindowBorder : HasIO io => Window -> io ()
+nDefaultWindowBorder win = nWindowBorder win Default Default Default Default
+                                             Default Default Default Default
 
 ||| Move the cursor in the standard window.
 export

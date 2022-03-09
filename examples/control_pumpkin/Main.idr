@@ -122,7 +122,7 @@ loop = do
 run : NCurses () Inactive Inactive
 run = Indexed.Do.do
   init
-  (MkSize rows cols) <- getSize
+  (MkSize rows cols) <- getSize True
   let centerX = (cols `div` 2) `minus` (width `div` 2)
   let centerY = (rows `div` 2) `minus` (height `div` 2)
   setCursor CInvisible
@@ -131,8 +131,8 @@ run = Indexed.Do.do
   addColor "black"  Black Black
   addColor "red"    Red Red
   addColor "debug"  Red Black
-  addWindow "instructions" (MkPosition centerY centerX) (MkSize 1 width)
-  addWindow "pumpkin" (MkPosition (centerY + 2) centerX) (MkSize height width)
+  addWindow "instructions" (MkPosition centerY centerX) (MkSize 1 width) Nothing
+  addWindow "pumpkin" (MkPosition (centerY + 2) centerX) (MkSize height width) Nothing
   clear
   setWindow "instructions"
   putStr instructions

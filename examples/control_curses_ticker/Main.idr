@@ -45,15 +45,16 @@ loop n = do
 run : NCurses () Inactive Inactive
 run = Indexed.Do.do
   init
-  (MkSize rows cols) <- getSize
+  (MkSize rows cols) <- getSize True
   let centerX = (cols `div` 2) `minus` ((length instructions) `div` 2)
   let centerY = (rows `div` 2)
   addColor "green" Green Black
   addColor "white" White Black
   setCursor CInvisible
-  addWindow "header" (MkPosition centerY     centerX) (MkSize 1 (length instructions))
-  addWindow "ticker" (MkPosition (S centerY) centerX) (MkSize 1 (length instructions))
+  addWindow "header" (MkPosition centerY     centerX) (MkSize 1 (length instructions)) Nothing
+  addWindow "ticker" (MkPosition (S centerY) centerX) (MkSize 1 (length instructions)) Nothing
   clear
+  addWindow "box"    (MkPosition (centerY `minus` 1) (centerX `minus` 2)) (MkSize 4 ((length instructions) + 3)) (defaultBorder "white")
   setWindow "header"
   putStrLn instructions
   refresh
