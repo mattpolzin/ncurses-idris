@@ -1,7 +1,7 @@
 IDRIS := idris2
 
 NCURSES_VERSION ?=      # system libncurses version
-INDEXED_VERSION = 0.0.7 # indexed Idris package
+INDEXED_VERSION = 0.0.8 # indexed Idris package
 
 LD_OVERRIDE ?= 
 

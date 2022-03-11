@@ -1,0 +1,6 @@
+package control_stateful
+
+depends = contrib, indexed, ncurses-idris
+
+executable = "control_stateful"
+main = Main

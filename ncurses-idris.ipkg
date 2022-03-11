@@ -5,7 +5,7 @@ version = 0.0.4
 sourcedir = "src"
 
 depends = contrib >= 0.5.1 -- for PrettyPrint
-        , indexed >= 0.0.5
+        , indexed >= 0.0.8
 modules = Control.NCurses
         , Control.NCurses.Pretty
         , Control.NCurses.State
