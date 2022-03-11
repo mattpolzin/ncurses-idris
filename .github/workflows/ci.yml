@@ -48,6 +48,11 @@ jobs:
           cd examples/control_bordered
           make
           cd -
+      - name: Build stateful example
+        run: |
+          cd examples/control_stateful
+          make
+          cd -
       - name: Build timed example
         run: |
           cd examples/timed
