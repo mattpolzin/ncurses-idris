@@ -33,7 +33,7 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   AddWindow   : IsActive s => (name : String) -> Position -> Size -> Maybe (Exists (\c => (Border c, HasColor c s))) -> NCurses () s (addWindow s name)
   SetWindow   : IsActive s => (name : String) -> HasWindow name s => NCurses () s (setWindow s name)
   UnsetWindow : IsActive s => HasWindow DefaultWindow s => NCurses () s (setWindow s DefaultWindow)
-  InWindow    : IsActive s => HasWindow w s => NCurses () (setWindow s w) (setWindow s w) -> NCurses () s s
+  InWindow    : IsActive s => (w : String) -> HasWindow w s => NCurses () (setWindow s w) (setWindow s w) -> NCurses () s s
   AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (addColor s name)
   ModAttr     : IsActive s => AttrCmd s -> NCurses () s s
   Clear       : IsActive s => NCurses () s s
@@ -165,7 +165,7 @@ unsetWindow = UnsetWindow
 ||| Perform some operations within another window, returning to the current window without
 ||| modifying state afterwards.
 export
-inWindow : IsActive s => HasWindow name s => NCurses () (setWindow s name) (setWindow s name) -> NCurses () s s
+inWindow : IsActive s => (name : String) -> HasWindow name s => NCurses () (setWindow s name) (setWindow s name) -> NCurses () s s
 inWindow = InWindow
 -- ^ NOTE: This _should_ be possible to do provably without creating a new @InWindow@ constructor just by
 --         using @SetWindow@ twice but I have yet to get the proofs to work.
@@ -1030,7 +1030,7 @@ runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (M
                         pure (keyOrCh, rewrite currentWindowPropsPrf e' wPrf in rs)
                 else do ch <- getCh' (getCoreWindow as)
                         pure (ch, rewrite currentWindowPropsPrf e' wPrf in rs)
-runNCurses (InWindow @{_} @{ItHasWindow @{elem}} nc) rs@(RActive as) = do
+runNCurses (InWindow _ @{_} @{ItHasWindow @{elem}} nc) rs@(RActive as) = do
   r <- runNCurses nc (RActive $ setRuntimeWindow elem as)
   pure ((), rs)
 
