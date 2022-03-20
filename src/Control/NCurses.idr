@@ -33,6 +33,7 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   AddWindow   : IsActive s => (name : String) -> Position -> Size -> Maybe (Exists (\c => (Border c, HasColor c s))) -> NCurses () s (addWindow s name)
   SetWindow   : IsActive s => (name : String) -> HasWindow name s => NCurses () s (setWindow s name)
   UnsetWindow : IsActive s => HasWindow DefaultWindow s => NCurses () s (setWindow s DefaultWindow)
+  InWindow    : IsActive s => HasWindow w s => NCurses () (setWindow s w) (setWindow s w) -> NCurses () s s
   AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (addColor s name)
   ModAttr     : IsActive s => AttrCmd s -> NCurses () s s
   Clear       : IsActive s => NCurses () s s
@@ -161,28 +162,38 @@ export
 unsetWindow : IsActive s => HasWindow DefaultWindow s => NCurses () s (setWindow s DefaultWindow)
 unsetWindow = UnsetWindow
 
-public export
-%hint
-hasWindowWithin : InWindow' w s => HasWindow w s
-hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** Here) _)} @{IsCurrentWindow'} = ItHasWindow
-hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** (There x)) _)} @{IsCurrentWindow'} = hasWindowWithin
+||| Perform some operations within another window, returning to the current window without
+||| modifying state afterwards.
+export
+inWindow : IsActive s => HasWindow name s => NCurses () (setWindow s name) (setWindow s name) -> NCurses () s s
+inWindow = InWindow
+-- ^ NOTE: This _should_ be possible to do provably without creating a new @InWindow@ constructor just by
+--         using @SetWindow@ twice but I have yet to get the proofs to work.
 
-public export
-%hint
-identifiesCurrentWindow : InWindow' w (Active _ ws _ _) => IdentifiesWindow w ws
-identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
-  identifiesCurrentWindow {ws} @{p} | (ItHasWindow @{ident}) = ident
+-- public export
+-- %hint
+-- hasWindowWithin : InWindow' w s => HasWindow w s
+-- hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** Here) _)} @{IsCurrentWindow'} = ItHasWindow
+-- hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** (There x)) _)} @{IsCurrentWindow'} = hasWindowWithin
+-- 
+-- public export
+-- %hint
+-- identifiesCurrentWindow : InWindow' w (Active _ ws _ _) => IdentifiesWindow w ws
+-- identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
+--   identifiesCurrentWindow {ws} @{p} | (ItHasWindow @{ident}) = ident
 
 ||| If a given state has a window, setting a new current window on that state does not
 ||| change the fact that the state has the original window.
 public export
-hasWindowStill : HasWindow w s => HasWindow w' s => HasWindow w (setWindow s w')
-hasWindowStill {w} {w'} {s = (Active _ (MkWindow w _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
-hasWindowStill {w} {w'} {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
-hasWindowStill {w} {w'} {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
-hasWindowStill {w} {w'} {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
+%hint
+hasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
+hasWindowStill {n} {w} {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
+hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
+hasWindowStill {n} {w} {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
+hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
 
 public export
+%hint
 isActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
 isActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
 
@@ -202,46 +213,60 @@ isActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
 -- 0 windowReset : (hasNext : HasWindow nextName (Active i ws ((MkWindow currentName k d) ** wPrf) cs)) => setWindow @{tmp hasNext} (setWindow (Active i ws ((MkWindow currentName k d) ** wPrf) cs) nextName) currentName = (Active i ws ((MkWindow currentName k d) ** wPrf) cs)
 -- windowReset {ws} @{ItHasWindow} {wPrf} = rewrite tmp2 {x=wPrf} in rewrite tmp3 {x=wPrf} in Refl
 
-yy : {w : String} -> {0 ws : _} -> {0 x : _} -> (hasW : HasWindow w (Active i ws x cs)) => Exists (\x' => setWindow @{hasW} (Active i ws x cs) w = (Active i ws x' cs))
-yy @{ItHasWindow @{p}} = Evidence (lookupWindow w ws ** lookupWindowPrf w ws) Refl
-
-export
-inWindow' : {n : String}
-         -> IdentifiesWindow n ws =>
-            (w : String)
-         -> (hasNext : HasWindow w (setWindow (Active i ws z cs) n)) =>
-            NCurses () (setWindow (setWindow (Active i ws z cs) n) w) (setWindow (setWindow (Active i ws z cs) n) w)
-         -> NCurses () (setWindow (Active i ws z cs) n) (setWindow (Active i ws z cs) n)
-inWindow' w f = do
-  setWindow w
-  f
-  let Evidence _ p1 = yy @{hasNext}
-  rewrite p1
-  setWindow n
-
-export
-inWindow : {n : String}
-        -> IdentifiesWindow n ws =>
-           (w : String)
-        -> (hasNext : HasWindow w (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)) =>
-           NCurses () (setWindow @{hasNext} (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) w) (setWindow @{hasNext} (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) w)
-        -> NCurses () (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)
-inWindow w f = do
-  setWindow w
-  f
-  let Evidence _ p1 = yy @{hasNext}
-  rewrite p1
-  setWindow n
-
-zz : HasWindow w (Active _ ws _ _) -> IdentifiesWindow w ws
-zz (ItHasWindow @{ident}) = ident
-
-0 ll : {w : String} -> {0 ws : _} -> {0 x : _} -> (hasW : HasWindow w (Active i ws x cs)) -> (yy @{hasW}).fst.fst.identifier = w
-ll (ItHasWindow @{p}) = lookupFindsIdentifier
-
-xxt : IdentifiesWindow w ws => InWindow w (Active _ ws (MkDPair (lookupWindow w ws) (lookupWindowPrf w ws)) _)
-xxt @{Here} = IsCurrentWindow @{Here}
-xxt @{(There x)} = IsCurrentWindow @{There x}
+-- yy : {w : String} -> {0 ws : _} -> {0 x : _} -> (hasW : HasWindow w (Active i ws x cs)) => Exists (\x' => setWindow @{hasW} (Active i ws x cs) w = (Active i ws x' cs))
+-- yy @{ItHasWindow @{p}} = Evidence (lookupWindow w ws ** lookupWindowPrf w ws) Refl
+-- 
+-- export
+-- inWindow' : {n : String}
+--          -> IdentifiesWindow n ws =>
+--             (w : String)
+--          -> (hasNext : HasWindow w (setWindow (Active i ws z cs) n)) =>
+--             NCurses () (setWindow (setWindow (Active i ws z cs) n) w) (setWindow (setWindow (Active i ws z cs) n) w)
+--          -> NCurses () (setWindow (Active i ws z cs) n) (setWindow (Active i ws z cs) n)
+-- inWindow' w f = do
+--   setWindow w
+--   f
+--   let Evidence _ p1 = yy @{hasNext}
+--   rewrite p1
+--   setWindow n
+-- 
+-- export
+-- inWindow : {n : String}
+--         -> IdentifiesWindow n ws =>
+--            (w : String)
+--         -> (hasNext : HasWindow w (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)) =>
+--            NCurses () (setWindow @{hasNext} (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) w) (setWindow @{hasNext} (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) w)
+--         -> NCurses () (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)
+-- inWindow w f = do
+--   setWindow w
+--   f
+--   let Evidence _ p1 = yy @{hasNext}
+--   rewrite p1
+--   setWindow n
+-- 
+-- export
+-- inWindowThree : {n : String}
+--              -> IdentifiesWindow n ws =>
+--                 (w : String)
+--              -> (hasNext : HasWindow w (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)) =>
+--                 ((hasNext : HasWindow w (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)) -> NCurses () (setWindow @{hasNext} (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) w) (setWindow @{hasNext} (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) w))
+--              -> NCurses () (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs) (Active i ws (lookupWindow n ws ** lookupWindowPrf n ws) cs)
+-- inWindowThree w f = do
+--   setWindow w
+--   f hasNext
+--   let Evidence _ p1 = yy @{hasNext}
+--   rewrite p1
+--   setWindow n
+-- 
+-- zz : HasWindow w (Active _ ws _ _) -> IdentifiesWindow w ws
+-- zz (ItHasWindow @{ident}) = ident
+-- 
+-- 0 ll : {w : String} -> {0 ws : _} -> {0 x : _} -> (hasW : HasWindow w (Active i ws x cs)) -> (yy @{hasW}).fst.fst.identifier = w
+-- ll (ItHasWindow @{p}) = lookupFindsIdentifier
+-- 
+-- xxt : IdentifiesWindow w ws => InWindow w (Active _ ws (MkDPair (lookupWindow w ws) (lookupWindowPrf w ws)) _)
+-- xxt @{Here} = IsCurrentWindow @{Here}
+-- xxt @{(There x)} = IsCurrentWindow @{There x}
 
 -- xxy : IdentifiesWindow w ws => InWindow' w (Active _ ws (MkDPair (lookupWindow w ws) (lookupWindowPrf w ws)) _)
 -- xxy {ws= _ :: _} @{Here} = IsCurrentWindow'
@@ -249,25 +274,33 @@ xxt @{(There x)} = IsCurrentWindow @{There x}
 --   xxy {ws= MkWindow i k d :: _} @{There  x} | Here = IsCurrentWindow'
 --   xxy {ws= MkWindow i k d :: _} @{There  x} | (There y) = xxy @{x} y
 
-export
-trizz : {n : String}
-     -> InWindow n s =>
-        (w : String)
-     -> (hasNext : HasWindow w s) =>
-        (InWindow w (setWindow s w @{hasNext}) -> NCurses () (setWindow s w @{hasNext}) (setWindow s w @{hasNext}))
-     -> NCurses () s s
-trizz @{IsCurrentWindow @{cw}} w @{ItHasWindow @{p}} f =
-  inWindow {n} @{cw} w @{ItHasWindow @{p}} (f $ xxt)
-
-export
-trizz' : {n : String}
-     -> HasWindow n s =>
-        (w : String)
-     -> (hasNext : HasWindow w (setWindow s n)) =>
-        (InWindow w (setWindow (setWindow s n) w @{hasNext}) -> NCurses () (setWindow (setWindow s n) w @{hasNext}) (setWindow (setWindow s n) w @{hasNext}))
-     -> NCurses () (setWindow s n) (setWindow s n)
-trizz' @{ItHasWindow @{cw}} w @{ItHasWindow @{p}} f =
-  inWindow {n} @{cw} w @{ItHasWindow @{p}} (f $ xxt)
+-- export
+-- trizz : {n : String}
+--      -> InWindow n s =>
+--         (w : String)
+--      -> (hasNext : HasWindow w s) =>
+--         (InWindow w (setWindow s w @{hasNext}) -> NCurses () (setWindow s w @{hasNext}) (setWindow s w @{hasNext}))
+--      -> NCurses () s s
+-- trizz @{IsCurrentWindow @{cw}} w @{ItHasWindow @{p}} f =
+--   inWindow {n} @{cw} w @{ItHasWindow @{p}} (f $ xxt)
+-- 
+-- trizzHelper : {n : String}
+--      -> (hasN : HasWindow n s)
+--      -> (w : String)
+--      -> (hasWStill : HasWindow w (setWindow s n))
+--      -> (InWindow w (setWindow (setWindow s n) w @{hasWStill}) -> NCurses () (setWindow (setWindow s n) w @{hasWStill}) (setWindow (setWindow s n) w @{hasWStill}))
+--      -> NCurses () (setWindow s n) (setWindow s n)
+-- trizzHelper (ItHasWindow @{cw}) w (ItHasWindow @{q}) f =
+--   inWindow {n} @{cw} w @{ItHasWindow @{q}} (f $ xxt)
+-- 
+-- export
+-- trizz' : {n : String}
+--      -> (hasN : HasWindow n s) =>
+--         (w : String)
+--      -> (hasW : HasWindow w s) =>
+--         (InWindow w (setWindow (setWindow s n) w @{NCurses.hasWindowStill @{hasW} @{hasN}}) -> NCurses () (setWindow (setWindow s n) w @{NCurses.hasWindowStill @{hasW} @{hasN}}) (setWindow (setWindow s n) w @{NCurses.hasWindowStill @{hasW} @{hasN}}))
+--      -> NCurses () (setWindow s n) (setWindow s n)
+-- trizz' @{hasN} w @{hasW} f = trizzHelper hasN w (hasWindowStill {s} @{hasW} @{hasN}) f
 
 ||| Clear the current window.
 |||
@@ -552,6 +585,7 @@ testRoutine = Indexed.Do.do
 --   insideWindow "win2"
   unsetWindow -- back to DefaultWindow
 --   trizz' {n=DefaultWindow} "win2" insideWindowTwice -- inside inWindow
+--   inWindowThree {n=DefaultWindow} "win2" insideWindowTwice -- inside inWindow
 --   insideWindow DefaultWindow
   deinit
     where
@@ -564,16 +598,19 @@ testRoutine = Indexed.Do.do
         inp <- getKeyOrChar
         putChIfPossible inp
 
-      insideWindow : IsActive s => (w : String) -> InWindow w s => NCurses () s s
-      insideWindow _ = do
-        erase
-        putStr "hello"
-        refresh
-
-      insideWindowTwice : InWindow "win2" s -> NCurses () s s
---       insideWindowTwice = do
+--       insideWindow : IsActive s => (w : String) -> InWindow w s => NCurses () s s
+--       insideWindow _ = do
 --         erase
---         inWindow {n="win2"} "win1" ?hole
+--         putStr "hello"
+--         refresh
+-- 
+--       insideWindowTwice : IsActive s => HasWindow "win1" s => {w : _} -> HasWindow w s -> NCurses () (setWindow s w) (setWindow s w)
+--       insideWindowTwice hw = do
+--         erase
+--         let t = hasWindowStill {s} {n="win1"} {w}
+--         let t2 = isActiveStill {s} {w}
+--         ?sis
+--         inWindowThree @{_} @{t} {n=w} "win1" (\hw => ?m)
 --         refresh
 
 --
@@ -993,6 +1030,9 @@ runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (M
                         pure (keyOrCh, rewrite currentWindowPropsPrf e' wPrf in rs)
                 else do ch <- getCh' (getCoreWindow as)
                         pure (ch, rewrite currentWindowPropsPrf e' wPrf in rs)
+runNCurses (InWindow @{_} @{ItHasWindow @{elem}} nc) rs@(RActive as) = do
+  r <- runNCurses nc (RActive $ setRuntimeWindow elem as)
+  pure ((), rs)
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and
