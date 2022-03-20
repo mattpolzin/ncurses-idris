@@ -115,10 +115,6 @@ public export
 (.active) (Active _ _ _ _) = True
 
 public export %inline
-initState : CursesState
-initState = Active initInput [initWindow "default"] (initWindow "default" ** Here) []
-
-public export %inline
 0 bumpWindow : DPair State.Window (\w => Elem w ws) -> DPair State.Window (\w => Elem w (y :: ws))
 bumpWindow (q ** r) = (q ** There r)
 
@@ -237,8 +233,6 @@ namespace Attribute
 public export
 record Border (color : String) where
   constructor MkBorder
---   {0 state : CursesState}
---   color : Subset String (\c => HasColor c state)
   left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight : BorderChar
 
 namespace Output
@@ -271,37 +265,68 @@ namespace Window
     Here : IdentifiesWindow name ((MkWindow name _ _) :: windows)
     There : IdentifiesWindow name windows -> IdentifiesWindow name (w :: windows)
 
+  ||| Proof that an @Elem@ for a window can produce a named window identifier.
+  public export
+  elemWindowIdentifies : Elem (MkWindow name _ _) ws -> IdentifiesWindow name ws
+  elemWindowIdentifies Here = Here
+  elemWindowIdentifies (There x) = There (elemWindowIdentifies x)
+
   public export
   data HasWindow : (0 name : String) -> CursesState -> Type where
-    ItHasWindow : IdentifiesWindow name ws => HasWindow name (Active _ ws w _)
-
-  public export
-  data InWindow : (0 name : String) -> CursesState -> Type where
-    IsCurrentWindow : InWindow name (Active _ _ ((MkWindow name _ _) ** _) _)
+    ItHasWindow : IdentifiesWindow name ws => HasWindow name (Active _ ws _ _)
 
   public export %inline
-  defaultWindow : String
-  defaultWindow = "default"
+  DefaultWindow : String
+  DefaultWindow = "default"
 
   public export
-  0 lookupWindow : (name : String) -> (ws : List State.Window) -> IdentifiesWindow name ws => State.Window
+  0 lookupWindow : (name : String)
+                -> (ws : List State.Window)
+                -> IdentifiesWindow name ws =>
+                   State.Window
   lookupWindow name (MkWindow name k d :: windows) @{Here} = (MkWindow name k d)
   lookupWindow name (w :: windows) @{(There elem)} =
     lookupWindow name windows
 
   public export
-  0 lookupWindowPrf : (name : String) -> (ws : List State.Window) -> IdentifiesWindow name ws => Elem (lookupWindow name ws) ws
+  lookupFindsIdentifier : IdentifiesWindow w ws => (lookupWindow w ws).identifier = w
+  lookupFindsIdentifier {ws = (MkWindow w _ _ :: windows)} @{Here} = Refl
+  lookupFindsIdentifier {ws = ((MkWindow identifier keypad noDelay) :: windows)} @{(There x)} = lookupFindsIdentifier @{x}
+
+  ||| Proof that looking up a window by a name proven to identify a window in the given
+  ||| list of windows will result in an element of that list of windows.
+  public export
+  0 lookupWindowPrf : (name : String)
+                   -> (ws : List State.Window)
+                   -> IdentifiesWindow name ws =>
+                      Elem (lookupWindow name ws) ws
   lookupWindowPrf name (MkWindow name _ _ :: windows) @{Here} = Here
   lookupWindowPrf name ((MkWindow identifier keypad noDelay) :: ws') @{(There e)} =
     There (lookupWindowPrf name ws')
 
   public export %inline
-  0 unsetWindow : (s : CursesState) -> IsActive s => HasWindow Window.defaultWindow s => CursesState
-  unsetWindow (Active i ws _ cs) @{_} @{ItHasWindow @{elem}} =
-    Active i ws (lookupWindow defaultWindow ws ** lookupWindowPrf defaultWindow ws) cs
-
-  public export %inline
   0 setWindow : (s : CursesState) -> (name : String) -> HasWindow name s => CursesState
-  setWindow (Active i ws _ cs) name @{ItHasWindow @{elem}} =
+  setWindow (Active i ws _ cs) name @{ItHasWindow} =
     Active i ws (lookupWindow name ws ** lookupWindowPrf name ws) cs
+
+  public export
+  data InWindow' : (0 name : String) -> CursesState -> Type where
+    IsCurrentWindow' : InWindow' name (Active _ ws (MkWindow name _ _ ** _) _)
+
+  public export
+  data InWindow : (0 name : String) -> CursesState -> Type where
+    IsCurrentWindow : (ident : IdentifiesWindow name ws) => InWindow name (Active _ ws (lookupWindow name ws @{ident} ** lookupWindowPrf name ws @{ident}) _)
+--     IsCurrentWindow2 : (hasW : HasWindow name s) => InWindow name (setWindow s name @{hasW})
+
+public export %inline
+initWindows : List State.Window
+initWindows = [initWindow DefaultWindow]
+
+public export %inline
+initState : CursesState
+initState = Active initInput
+                   initWindows
+                   (lookupWindow    DefaultWindow initWindows **
+                    lookupWindowPrf DefaultWindow initWindows)
+                   []
 
