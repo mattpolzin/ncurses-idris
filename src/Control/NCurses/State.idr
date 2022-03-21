@@ -313,11 +313,6 @@ namespace Window
   data InWindow : (0 name : String) -> CursesState -> Type where
     IsCurrentWindow : InWindow name (Active _ ws (MkWindow name _ _ ** _) _)
 
---   public export
---   data InWindow : (0 name : String) -> CursesState -> Type where
---     IsCurrentWindow : (ident : IdentifiesWindow name ws) => InWindow name (Active _ ws (lookupWindow name ws @{ident} ** lookupWindowPrf name ws @{ident}) _)
---     IsCurrentWindow2 : (hasW : HasWindow name s) => InWindow name (setWindow s name @{hasW})
-
 public export %inline
 initWindows : List State.Window
 initWindows = [initWindow DefaultWindow]
