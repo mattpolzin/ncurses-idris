@@ -32,7 +32,8 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   DeInit      : IsActive s => NCurses () s Inactive
   AddWindow   : IsActive s => (name : String) -> Position -> Size -> Maybe (Exists (\c => (Border c, HasColor c s))) -> NCurses () s (addWindow s name)
   SetWindow   : IsActive s => (name : String) -> HasWindow name s => NCurses () s (setWindow s name)
-  UnsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (unsetWindow s)
+  UnsetWindow : IsActive s => HasWindow DefaultWindow s => NCurses () s (setWindow s DefaultWindow)
+  InWindow    : IsActive s => (w : String) -> HasWindow w s => NCurses () (setWindow s w) (setWindow s w) -> NCurses () s s
   AddColor    : IsActive s => (name : String) -> (fg : Color) -> (bg : Color) -> NCurses () s (addColor s name)
   ModAttr     : IsActive s => AttrCmd s -> NCurses () s s
   Clear       : IsActive s => NCurses () s s
@@ -158,8 +159,54 @@ setWindow = SetWindow
 ||| Unset the current window. This results in the full screen (also known
 ||| as the default or standard window) being "current."
 export
-unsetWindow : IsActive s => HasWindow Window.defaultWindow s => NCurses () s (unsetWindow s)
+unsetWindow : IsActive s => HasWindow DefaultWindow s => NCurses () s (setWindow s DefaultWindow)
 unsetWindow = UnsetWindow
+
+||| Perform some operations within another window, returning to the current window without
+||| modifying state afterwards.
+export
+inWindow : IsActive s => (name : String) -> HasWindow name s => NCurses () (setWindow s name) (setWindow s name) -> NCurses () s s
+inWindow = InWindow
+-- ^ NOTE: This _should_ be possible to do provably without creating a new @InWindow@ constructor just by
+--         using @SetWindow@ twice but I have yet to get the proofs to work.
+
+public export
+%hint
+hasWindowWithin : InWindow w s => HasWindow w s
+hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** Here) _)} @{IsCurrentWindow} = ItHasWindow
+hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** (There x)) _)} @{IsCurrentWindow} = hasWindowWithin
+
+public export
+%hint
+identifiesCurrentWindow : InWindow w (Active _ ws _ _) => IdentifiesWindow w ws
+identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
+  identifiesCurrentWindow {ws} @{p} | (ItHasWindow @{ident}) = ident
+
+||| If a given state has a window, setting a new current window on that state does not
+||| change the fact that the state has the original window.
+public export
+%hint
+hasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
+hasWindowStill {n} {w} {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
+hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
+hasWindowStill {n} {w} {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
+hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
+
+public export
+%hint
+isActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
+isActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
+
+public export
+identifiedWindowExists : IdentifiesWindow w ws -> Exists (\k => Exists (\d => lookupWindow w ws = MkWindow w k d))
+identifiedWindowExists {ws = (MkWindow _ _ _ :: windows)} Here = Evidence _ (Evidence _ Refl)
+identifiedWindowExists {ws = ((MkWindow identifier keypad noDelay) :: windows)} (There x) = identifiedWindowExists x
+
+public export
+%hint
+inWindowNow : HasWindow w s => InWindow w (setWindow s w)
+inWindowNow @{ItHasWindow @{p}} with (identifiedWindowExists p)
+  inWindowNow @{ItHasWindow  @{p}} | (Evidence k (Evidence d prf)) = rewrite prf in IsCurrentWindow
 
 ||| Clear the current window.
 |||
@@ -420,6 +467,7 @@ namespace Input
 testRoutine : NCurses () Inactive Inactive
 testRoutine = Indexed.Do.do
   init
+  insideWindow DefaultWindow
   addColor "alert" White Red
   setAttr Underline
   setAttr (Color "alert")
@@ -429,10 +477,16 @@ testRoutine = Indexed.Do.do
   putStrLn "back to basics."
   addWindow "win1" (MkPosition 10 10) (MkSize 10 20) Nothing
   setWindow "win1"
+  insideWindow "win1"
   inp <- getInput
   putChIfPossible inp
   unsetWindow
   addWindow "win2" (MkPosition 0 0) (MkSize 10 10) (defaultBorder "alert")
+  setWindow "win2"
+  insideWindow "win2"
+  unsetWindow -- back to DefaultWindow
+  inWindow "win2" (insideWindowTwice "win1") -- inside inWindow
+  insideWindow DefaultWindow
   deinit
     where
       putChIfPossible : IsActive s => Either Char Key -> NCurses () s s
@@ -443,6 +497,18 @@ testRoutine = Indexed.Do.do
       getAndPut = do
         inp <- getKeyOrChar
         putChIfPossible inp
+
+      insideWindow : IsActive s => (w : String) -> InWindow w s => NCurses () s s
+      insideWindow _ = do
+        erase
+        putStr "hello"
+        refresh
+
+      insideWindowTwice : IsActive s => InWindow "win2" s => (w : _) -> HasWindow w s => NCurses () s s
+      insideWindowTwice w = do
+        erase
+        inWindow w (insideWindow w @{isActiveStill} @{inWindowNow})
+        refresh
 
 --
 -- Runtime
@@ -772,8 +838,8 @@ runNCurses Init RInactive = Prelude.do
   noDelay False
   win <- stdWindow
   keyMap <- SpecialKey.keyMap
-  pure ((), RActive $ MkCursesActive [initRuntimeWindow Window.defaultWindow Nothing win]
-                                     (initRuntimeWindow Window.defaultWindow Nothing win ** Here)
+  pure ((), RActive $ MkCursesActive [initRuntimeWindow DefaultWindow Nothing win]
+                                     (initRuntimeWindow DefaultWindow Nothing win ** Here)
                                      []
                                      {csPrf=Refl}
                                      Nothing
@@ -861,6 +927,9 @@ runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (M
                         pure (keyOrCh, rewrite currentWindowPropsPrf e' wPrf in rs)
                 else do ch <- getCh' (getCoreWindow as)
                         pure (ch, rewrite currentWindowPropsPrf e' wPrf in rs)
+runNCurses (InWindow _ @{_} @{ItHasWindow @{elem}} nc) rs@(RActive as) = do
+  r <- runNCurses nc (RActive $ setRuntimeWindow elem as)
+  pure ((), rs)
 
 ||| Run an NCurses program with guarantees
 ||| that it is initialized at the beginning and

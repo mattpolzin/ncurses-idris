@@ -1,0 +1,6 @@
+package control_in_window
+
+depends = contrib, indexed, ncurses-idris
+
+executable = "control_in_window"
+main = Main
