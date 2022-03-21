@@ -6,7 +6,7 @@ INDEXED_VERSION = 0.0.8 # indexed Idris package
 LD_OVERRIDE ?= 
 
 TARGET = libncurses-idris
-TARGET_VERSION ?= 0.0.4
+TARGET_VERSION ?= 0.0.5
 
 PACKAGE_INSTALLDIR = `${IDRIS} --libdir`
 SHAREDLIB_INSTALLDIR = ${PACKAGE_INSTALLDIR}/ncurses-idris-${TARGET_VERSION}/lib
