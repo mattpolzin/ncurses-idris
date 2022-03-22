@@ -186,22 +186,41 @@ identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
 ||| change the fact that the state has the original window.
 public export
 %hint
-hasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
-hasWindowStill {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
-hasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
-hasWindowStill {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
-hasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
+setWindowHasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
+setWindowHasWindowStill {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
+setWindowHasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
+setWindowHasWindowStill {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
+setWindowHasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
 
 public export
 %hint
-isActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
-isActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
+setWindowIsActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
+setWindowIsActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
 
 public export
 %hint
-hasColorStill : HasColor c s => HasWindow w s => HasColor c (setWindow s w)
-hasColorStill {s = (Active _ _ _ (c :: xs))} @{ItHasColor  @{Here}} @{ItHasWindow} = ItHasColor
-hasColorStill {s = (Active _ _ _ (y :: xs))} @{ItHasColor  @{(There x)}} @{ItHasWindow} = ItHasColor
+setWindowHasColorStill : HasColor c s => HasWindow w s => HasColor c (setWindow s w)
+setWindowHasColorStill {s = (Active _ _ _ (c :: xs))} @{ItHasColor  @{Here}} @{ItHasWindow} = ItHasColor
+setWindowHasColorStill {s = (Active _ _ _ (y :: xs))} @{ItHasColor  @{(There x)}} @{ItHasWindow} = ItHasColor
+
+||| If a given state has a window, setting a new current window on that state does not
+||| change the fact that the state has the original window.
+public export
+%hint
+addWindowHasWindowStill : IsActive s => HasWindow n s => HasWindow n (addWindow s w)
+addWindowHasWindowStill {s = (Active _ (_ :: ws) _ _)} @{ItIsActive} @{ItHasWindow @{Here}} = ItHasWindow
+addWindowHasWindowStill {s = (Active _ (_ :: ws) _ _)} @{ItIsActive} @{ItHasWindow @{(There x)}} = ItHasWindow
+
+public export
+%hint
+addWindowIsActiveStill : IsActive s => IsActive (addWindow s w)
+addWindowIsActiveStill @{ItIsActive} = ItIsActive
+
+public export
+%hint
+addWindowHasColorStill : IsActive s => HasColor c s => HasColor c (addWindow s w)
+addWindowHasColorStill {s = (Active _ _ _ (c :: xs))} @{ItIsActive} @{ItHasColor @{Here}} = ItHasColor
+addWindowHasColorStill {s = (Active _ _ _ (y :: xs))} @{ItIsActive} @{ItHasColor @{(There x)}} = ItHasColor
 
 public export
 identifiedWindowExists : IdentifiesWindow w ws -> Exists (\k => Exists (\d => lookupWindow w ws = MkWindow w k d))
@@ -513,7 +532,7 @@ testRoutine = Indexed.Do.do
       insideWindowTwice : IsActive s => InWindow "win2" s => (w : _) -> HasWindow w s => NCurses () s s
       insideWindowTwice w = do
         erase
-        inWindow w (insideWindow w @{isActiveStill} @{inWindowNow})
+        inWindow w (insideWindow w @{setWindowIsActiveStill} @{inWindowNow})
         refresh
 
 --
