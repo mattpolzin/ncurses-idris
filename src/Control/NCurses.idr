@@ -187,15 +187,21 @@ identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
 public export
 %hint
 hasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
-hasWindowStill {n} {w} {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
-hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
-hasWindowStill {n} {w} {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
-hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
+hasWindowStill {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
+hasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
+hasWindowStill {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
+hasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
 
 public export
 %hint
 isActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
 isActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
+
+public export
+%hint
+hasColorStill : HasColor c s => HasWindow w s => HasColor c (setWindow s w)
+hasColorStill {s = (Active _ _ _ (c :: xs))} @{ItHasColor  @{Here}} @{ItHasWindow} = ItHasColor
+hasColorStill {s = (Active _ _ _ (y :: xs))} @{ItHasColor  @{(There x)}} @{ItHasWindow} = ItHasColor
 
 public export
 identifiedWindowExists : IdentifiesWindow w ws -> Exists (\k => Exists (\d => lookupWindow w ws = MkWindow w k d))

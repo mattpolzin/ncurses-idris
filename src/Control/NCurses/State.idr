@@ -207,7 +207,7 @@ namespace Attribute
   ||| NCurses session.
   public export
   data HasColor : (0 name : String) -> CursesState -> Type where
-    ItHasColor : Elem name cs => HasColor name (Active _ ws w cs)
+    ItHasColor : Elem name cs => HasColor name (Active _ _ w cs)
 
   public export
   data Attribute : CursesState -> Type where
