@@ -46,11 +46,12 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   SetNoDelay  : IsActive s => (on : Bool) -> NCurses () s (setNoDelay s on)
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s s
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (setKeypad s on)
-  SetSize     : IsActive s => Size -> NCurses () s s
   GetPos      : IsActive s => NCurses Position s s
+  SetPos      : IsActive s => Position -> NCurses () s s
   ||| Get the size of the current window. If `internal` is @True@, then
   ||| will subtract the space taken up by any border a window has.
   GetSize     : IsActive s => (internal : Bool) -> NCurses Size s s
+  SetSize     : IsActive s => Size -> NCurses () s s
   GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s s
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
@@ -267,6 +268,11 @@ refreshAll = RefreshAll
 export
 getPos : IsActive s => NCurses Position s s
 getPos = GetPos
+
+||| Set the position of the current window.
+export
+setPos : IsActive s => Position -> NCurses () s s
+setPos = SetPos
 
 ||| Get the size of the current window.
 |||
@@ -919,6 +925,7 @@ runNCurses (ModAttr cmd) rs = do
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
+runNCurses (SetPos pos) rs = moveWindow (getCoreWindow' rs) pos.row pos.col $> ((), rs)
 runNCurses GetPos rs = do
   let win = getCoreWindow' rs
   y <- getYPos' win
