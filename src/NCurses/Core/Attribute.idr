@@ -5,6 +5,9 @@ import NCurses.Core.Color
 
 %default total
 
+%foreign libncurses "wchgat"
+prim__changeAtWindow : AnyPtr -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
+
 %foreign libncurses "mvchgat"
 prim__mvChangeAt : Int -> Int -> Int -> Int -> Int -> AnyPtr -> PrimIO ()
 
@@ -160,33 +163,50 @@ nDisableAttr' (Win win) attr = do attribute <- getAttribute attr
 |||
 ||| See @nChangeAttr'@ to change attributes in another window.
 export
-nChangeAttr : HasIO io 
-           => (row : Nat) 
-           -> (col : Nat) 
-           -> (len : Maybe Nat) 
-           -> Attribute 
-           -> ColorPair
-           -> io ()
-nChangeAttr row col len attr cp = 
+nChangeAttrAt : HasIO io 
+            => (row : Nat) 
+            -> (col : Nat) 
+            -> (len : Maybe Nat) 
+            -> Attribute 
+            -> ColorPair
+            -> io ()
+nChangeAttrAt row col len attr cp = 
   let length = the Int (maybe (-1) cast len)
   in  
       do attribute <- getAttribute attr
          primIO $ 
            prim__mvChangeAt (cast row) (cast col) length attribute (cast cp.idx) prim__getNullAnyPtr
 
-||| Change the attributes at the given position in the given window.
+||| Change the attributes in the given window for the next @len@ characters.
 ||| A len of Nothing means "the whole line."
 ||| A color pair of @defaultColorPair@ offers a sane default.
 export
 nChangeAttr' : HasIO io 
             => Window
-            -> (row : Nat) 
-            -> (col : Nat) 
             -> (len : Maybe Nat) 
             -> Attribute 
             -> ColorPair
             -> io ()
-nChangeAttr' (Win win) row col len attr cp = 
+nChangeAttr' (Win win) len attr cp = 
+  let length = the Int (maybe (-1) cast len)
+  in  
+      do attribute <- getAttribute attr
+         primIO $ 
+           prim__changeAtWindow win length attribute (cast cp.idx) prim__getNullAnyPtr
+
+||| Change the attributes at the given position in the given window.
+||| A len of Nothing means "the whole line."
+||| A color pair of @defaultColorPair@ offers a sane default.
+export
+nChangeAttrAt' : HasIO io 
+              => Window
+              -> (row : Nat) 
+              -> (col : Nat) 
+              -> (len : Maybe Nat) 
+              -> Attribute 
+              -> ColorPair
+              -> io ()
+nChangeAttrAt' (Win win) row col len attr cp = 
   let length = the Int (maybe (-1) cast len)
   in  
       do attribute <- getAttribute attr

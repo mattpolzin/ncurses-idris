@@ -228,6 +228,7 @@ namespace Attribute
     SetAttr     : Attribute s -> AttrCmd s
     EnableAttr  : Attribute s -> AttrCmd s
     DisableAttr : Attribute s -> AttrCmd s
+    UpdateAttr  : Attribute s -> (color : String) -> HasColor color s => (length : Maybe Nat) -> AttrCmd s
 
 ||| A Window border.
 public export

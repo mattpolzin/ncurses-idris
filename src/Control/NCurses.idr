@@ -347,6 +347,15 @@ namespace Attribute
              -- that here in the future.
              foldr (\a,nc => nc >> enableAttr a) (setAttr Normal)
 
+  ||| Update the attribute (only supports a single attribute for now) and color
+  ||| at the current position for the given length of characters. This allows
+  ||| you to change attributes of already printed characters.
+  |||
+  ||| Specify a length of @Nothing@ to update the whole line.
+  export
+  updateAttr : IsActive s => Attribute s -> (color : String) -> HasColor color s => (length : Maybe Nat) -> NCurses () s s
+  updateAttr attr color length = ModAttr (UpdateAttr attr color length)
+
 --
 -- Output Commands
 --
@@ -734,6 +743,10 @@ setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf
                    , keyMap
                    }
 
+coreColor : RuntimeCurses s -> (name : String) -> HasColor name s => ColorPair
+coreColor (RActive (MkCursesActive _ _ colors {csPrf} _ _)) name @{ItHasColor @{elem}} =
+  getColor colors csPrf elem
+
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
 coreAttr : RuntimeCurses s -> Attribute s -> Attribute
@@ -747,9 +760,7 @@ coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive _ _ colors {csPrf} _ _)) (Color name @{ItHasColor @{elem}}) =
-  let color = getColor colors csPrf elem
-  in  CP color
+coreAttr rs (Color name) = CP (coreColor rs name)
 
 ||| Set the current color IF the atttribute in question is a color attribute.
 maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
@@ -782,6 +793,8 @@ modNCursesAttr (EnableAttr  attr) rs =
   nEnableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (DisableAttr attr) rs =
   nDisableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
+modNCursesAttr (UpdateAttr attr color len) rs =
+  nChangeAttr' (getCoreWindow' rs) len (coreAttr rs attr) (coreColor rs color) $> (maybeSetCurrentColor (Color color) rs)
 
 printNCurses : HasIO io =>
                IsActive s =>
