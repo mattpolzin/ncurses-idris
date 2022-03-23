@@ -353,7 +353,7 @@ namespace Attribute
   |||
   ||| Specify a length of @Nothing@ to update the whole line.
   export
-  updateAttr : IsActive s => Attribute s -> (color : String) -> HasColor color s => (length : Maybe Nat) -> NCurses () s s
+  updateAttr : IsActive s => Attribute s -> ColorAttr s -> (length : Maybe Nat) -> NCurses () s s
   updateAttr attr color length = ModAttr (UpdateAttr attr color length)
 
 --
@@ -510,10 +510,10 @@ testRoutine = Indexed.Do.do
   insideWindow DefaultWindow
   addColor "alert" White Red
   setAttr Underline
-  setAttr (Color "alert")
+  setAttr (Color (Named "alert"))
   clear >> refresh
   putStr "Hello World"
-  setAttr DefaultColors
+  setAttr (Color DefaultColors)
   putStrLn "back to basics."
   addWindow "win1" (MkPosition 10 10) (MkSize 10 20) Nothing
   setWindow "win1"
@@ -759,12 +759,12 @@ coreAttr _ Dim       = Dim
 coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
-coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr rs (Color name) = CP (coreColor rs name)
+coreAttr _ (Color DefaultColors) = CP defaultColorPair
+coreAttr rs (Color (Named name)) = CP (coreColor rs name)
 
 ||| Set the current color IF the atttribute in question is a color attribute.
 maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
-maybeSetCurrentColor (Color name @{ItHasColor @{elem}}) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+maybeSetCurrentColor (Color (Named name @{ItHasColor @{elem}})) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
   let color = getColor colors csPrf elem
   in
   RActive (MkCursesActive windows currentWindow colors {csPrf} (Just color) keyMap)
@@ -794,7 +794,11 @@ modNCursesAttr (EnableAttr  attr) rs =
 modNCursesAttr (DisableAttr attr) rs =
   nDisableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
 modNCursesAttr (UpdateAttr attr color len) rs =
-  nChangeAttr' (getCoreWindow' rs) len (coreAttr rs attr) (coreColor rs color) $> (maybeSetCurrentColor (Color color) rs)
+  let cp = case color of
+                DefaultColors => defaultColorPair
+                Named name    => coreColor rs name
+  in
+  nChangeAttr' (getCoreWindow' rs) len (coreAttr rs attr) cp $> (maybeSetCurrentColor (Color color) rs)
 
 printNCurses : HasIO io =>
                IsActive s =>
