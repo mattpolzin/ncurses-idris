@@ -76,11 +76,11 @@ run = Indexed.Do.do
   addWindow "options" (MkPosition 1 0) (MkSize 10 10) Nothing
   addColor "heading" White Red
   clear
-  setAttr (Color "heading")
+  setAttr (Color (Named "heading"))
   putStr "Ctrl+C to exit, arrow keys to select a row."
   refresh
   setWindow "options"
-  setAttr DefaultColors
+  setAttr (Color DefaultColors)
   evalStateT (init items) loop
   deinit
 

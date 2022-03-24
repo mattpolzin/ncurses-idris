@@ -207,7 +207,12 @@ namespace Attribute
   ||| NCurses session.
   public export
   data HasColor : (0 name : String) -> CursesState -> Type where
-    ItHasColor : Elem name cs => HasColor name (Active _ ws w cs)
+    ItHasColor : Elem name cs => HasColor name (Active _ _ w cs)
+
+  public export
+  data ColorAttr : CursesState -> Type where
+    DefaultColors : ColorAttr s
+    Named : (name : String) -> HasColor name s => ColorAttr s
 
   public export
   data Attribute : CursesState -> Type where
@@ -220,14 +225,14 @@ namespace Attribute
     Bold          : Attribute s
     Protected     : Attribute s
     Invisible     : Attribute s
-    DefaultColors : Attribute s
-    Color         : (name : String) -> HasColor name s => Attribute s
+    Color         : ColorAttr s -> Attribute s
 
   public export
   data AttrCmd : CursesState -> Type where
     SetAttr     : Attribute s -> AttrCmd s
     EnableAttr  : Attribute s -> AttrCmd s
     DisableAttr : Attribute s -> AttrCmd s
+    UpdateAttr  : Attribute s -> ColorAttr s -> (length : Maybe Nat) -> AttrCmd s
 
 ||| A Window border.
 public export

@@ -15,15 +15,23 @@ prim__stdWindow : PrimIO AnyPtr
 %foreign libncurses "newwin"
 prim__newWindow : Int -> Int -> Int -> Int -> PrimIO AnyPtr
 
+-- Returns ERR/OK
+%foreign libncurses "delwin"
+prim__deleteWindow : AnyPtr -> PrimIO Int
+
+-- Returns ERR/OK
+%foreign libncurses "mvwin"
+prim__moveWindow : AnyPtr -> Int -> Int -> PrimIO Int
+
+-- Returns ERR/OK
+%foreign libncurses "wresize"
+prim__resizeWindow : AnyPtr -> Int -> Int -> PrimIO Int
+
 %foreign libncurses "getmaxx"
 prim__maxXWindow : AnyPtr -> PrimIO Int
 
 %foreign libncurses "getmaxy"
 prim__maxYWindow : AnyPtr -> PrimIO Int
-
--- Returns ERR/OK
-%foreign libncurses "wresize"
-prim__resizeWindow : AnyPtr -> Int -> Int -> PrimIO Int
 
 %foreign libncurses "getcury"
 prim__getYWindow : AnyPtr -> PrimIO Int
@@ -100,7 +108,7 @@ prim__borderWindow : AnyPtr
 prim__move : Int -> Int -> PrimIO ()
 
 %foreign libncurses "wmove"
-prim__moveWindow : AnyPtr -> Int -> Int -> PrimIO ()
+prim__moveInWindow : AnyPtr -> Int -> Int -> PrimIO ()
 
 %foreign libncurses "initscr"
 prim__initScr : PrimIO ()
@@ -134,6 +142,45 @@ export
 newWindow : HasIO io => (height : Nat) -> (width : Nat) -> (y : Nat) -> (x : Nat) -> io Window
 newWindow height width y x = Win <$> (primIO $ prim__newWindow (cast height) (cast width) (cast y) (cast x))
 
+||| Delete an ncurses window.
+|||
+||| Returns @True@ on success and @False@ on error.
+export
+deleteWindow : HasIO io => Window -> io Bool
+deleteWindow (Win win) = do
+  err <- primIO $ prim__err
+  res <- primIO $ prim__deleteWindow win
+  pure $
+    if res == err
+       then False
+       else True
+
+||| Move an ncurses window.
+|||
+||| Returns @True@ on success and @False@ on error.
+export
+moveWindow : HasIO io => Window -> (y : Nat) -> (x : Nat) -> io Bool
+moveWindow (Win win) y x = do
+  err <- primIO $ prim__err
+  res <- primIO $ prim__moveWindow win (cast y) (cast x)
+  pure $
+    if res == err
+       then False
+       else True
+
+||| Resize an ncurses window.
+|||
+||| Returns @True@ on success and @False@ on error.
+export
+setWindowSize : HasIO io => Window -> (rows : Nat) -> (cols : Nat) -> io Bool
+setWindowSize (Win win) rows cols = do
+  err <- primIO $ prim__err
+  res <- primIO $ prim__resizeWindow win (cast rows) (cast cols) 
+  pure $
+    if res == err
+       then False
+       else True
+
 ||| As is normal for ncurses, returns (height, width).
 export
 getMaxSize' : HasIO io => Window -> io (Nat, Nat)
@@ -156,10 +203,6 @@ getXPos' (Win win) = map cast . primIO $ prim__getXWindow win
 export
 getXPos : HasIO io => io Nat
 getXPos = getXPos' !stdWindow
-
-export
-setWindowSize : HasIO io => Window -> (rows : Nat) -> (cols : Nat) -> io ()
-setWindowSize (Win win) rows cols= ignore . primIO $ prim__resizeWindow win (cast rows) (cast cols) 
 
 ||| Refresh the standard window.
 |||
@@ -324,7 +367,7 @@ nMoveCursor row col = primIO $ prim__move (cast row) (cast col)
 ||| Move the cursor in the given window.
 export
 nMoveCursor' : HasIO io => Window -> (row : Nat) -> (col : Nat) -> io ()
-nMoveCursor' (Win win) row col = primIO $ prim__moveWindow win (cast row) (cast col)
+nMoveCursor' (Win win) row col = primIO $ prim__moveInWindow win (cast row) (cast col)
 
 ||| You must call @initNCurses@ before using the other
 ||| ncurses functions and you must call @deinitNCurses@

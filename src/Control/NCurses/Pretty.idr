@@ -13,11 +13,11 @@ import Control.Indexed
 ||| See also @defaultColor@.
 export
 color : (name : String) -> HasColor name s => Doc (Attribute s) -> Doc (Attribute s)
-color name = annotate (Color name)
+color name = annotate (Color (Named name))
 
 export
 defaultColor : Doc (Attribute s) -> Doc (Attribute s)
-defaultColor = annotate DefaultColors
+defaultColor = annotate (Color DefaultColors)
 
 export
 underline : Doc (Attribute s) -> Doc (Attribute s)

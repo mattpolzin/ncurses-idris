@@ -46,11 +46,12 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   SetNoDelay  : IsActive s => (on : Bool) -> NCurses () s (setNoDelay s on)
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s s
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (setKeypad s on)
-  SetSize     : IsActive s => Size -> NCurses () s s
   GetPos      : IsActive s => NCurses Position s s
+  SetPos      : IsActive s => Position -> NCurses () s s
   ||| Get the size of the current window. If `internal` is @True@, then
   ||| will subtract the space taken up by any border a window has.
   GetSize     : IsActive s => (internal : Bool) -> NCurses Size s s
+  SetSize     : IsActive s => Size -> NCurses () s s
   GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s s
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
@@ -186,16 +187,41 @@ identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
 ||| change the fact that the state has the original window.
 public export
 %hint
-hasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
-hasWindowStill {n} {w} {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
-hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
-hasWindowStill {n} {w} {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
-hasWindowStill {n} {w} {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
+setWindowHasWindowStill : HasWindow n s => HasWindow w s => HasWindow n (setWindow s w)
+setWindowHasWindowStill {s = (Active _ (MkWindow n _ _ :: ws) _ _)} @{ItHasWindow  @{Here}} @{ItHasWindow} = ItHasWindow
+setWindowHasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{Here}} impossible
+setWindowHasWindowStill {s = (Active _ (y :: ws) _ _)} @{ItHasWindow  @{There x}} @{ItHasWindow} = ItHasWindow @{There x}
+setWindowHasWindowStill {s = Active _ [] _ _} @{ItHasWindow  @{There x}} impossible
 
 public export
 %hint
-isActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
-isActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
+setWindowIsActiveStill : IsActive s => HasWindow w s => IsActive (setWindow s w)
+setWindowIsActiveStill @{ItIsActive} @{ItHasWindow} = ItIsActive
+
+public export
+%hint
+setWindowHasColorStill : HasColor c s => HasWindow w s => HasColor c (setWindow s w)
+setWindowHasColorStill {s = (Active _ _ _ (c :: xs))} @{ItHasColor  @{Here}} @{ItHasWindow} = ItHasColor
+setWindowHasColorStill {s = (Active _ _ _ (y :: xs))} @{ItHasColor  @{(There x)}} @{ItHasWindow} = ItHasColor
+
+||| If a given state has a window, setting a new current window on that state does not
+||| change the fact that the state has the original window.
+public export
+%hint
+addWindowHasWindowStill : IsActive s => HasWindow n s => HasWindow n (addWindow s w)
+addWindowHasWindowStill {s = (Active _ (_ :: ws) _ _)} @{ItIsActive} @{ItHasWindow @{Here}} = ItHasWindow
+addWindowHasWindowStill {s = (Active _ (_ :: ws) _ _)} @{ItIsActive} @{ItHasWindow @{(There x)}} = ItHasWindow
+
+public export
+%hint
+addWindowIsActiveStill : IsActive s => IsActive (addWindow s w)
+addWindowIsActiveStill @{ItIsActive} = ItIsActive
+
+public export
+%hint
+addWindowHasColorStill : IsActive s => HasColor c s => HasColor c (addWindow s w)
+addWindowHasColorStill {s = (Active _ _ _ (c :: xs))} @{ItIsActive} @{ItHasColor @{Here}} = ItHasColor
+addWindowHasColorStill {s = (Active _ _ _ (y :: xs))} @{ItIsActive} @{ItHasColor @{(There x)}} = ItHasColor
 
 public export
 identifiedWindowExists : IdentifiesWindow w ws -> Exists (\k => Exists (\d => lookupWindow w ws = MkWindow w k d))
@@ -242,6 +268,11 @@ refreshAll = RefreshAll
 export
 getPos : IsActive s => NCurses Position s s
 getPos = GetPos
+
+||| Set the position of the current window.
+export
+setPos : IsActive s => Position -> NCurses () s s
+setPos = SetPos
 
 ||| Get the size of the current window.
 |||
@@ -315,6 +346,15 @@ namespace Attribute
              -- this by passing a mask of ORed attributes. We could support
              -- that here in the future.
              foldr (\a,nc => nc >> enableAttr a) (setAttr Normal)
+
+  ||| Update the attribute (only supports a single attribute for now) and color
+  ||| at the current position for the given length of characters. This allows
+  ||| you to change attributes of already printed characters.
+  |||
+  ||| Specify a length of @Nothing@ to update the whole line.
+  export
+  updateAttr : IsActive s => Attribute s -> ColorAttr s -> (length : Maybe Nat) -> NCurses () s s
+  updateAttr attr color length = ModAttr (UpdateAttr attr color length)
 
 --
 -- Output Commands
@@ -470,10 +510,10 @@ testRoutine = Indexed.Do.do
   insideWindow DefaultWindow
   addColor "alert" White Red
   setAttr Underline
-  setAttr (Color "alert")
+  setAttr (Color (Named "alert"))
   clear >> refresh
   putStr "Hello World"
-  setAttr DefaultColors
+  setAttr (Color DefaultColors)
   putStrLn "back to basics."
   addWindow "win1" (MkPosition 10 10) (MkSize 10 20) Nothing
   setWindow "win1"
@@ -507,7 +547,7 @@ testRoutine = Indexed.Do.do
       insideWindowTwice : IsActive s => InWindow "win2" s => (w : _) -> HasWindow w s => NCurses () s s
       insideWindowTwice w = do
         erase
-        inWindow w (insideWindow w @{isActiveStill} @{inWindowNow})
+        inWindow w (insideWindow w @{setWindowIsActiveStill} @{inWindowNow})
         refresh
 
 --
@@ -703,6 +743,10 @@ setRuntimeNoDelay on (RActive (MkCursesActive windows (rw ** wPrf) colors {csPrf
                    , keyMap
                    }
 
+coreColor : RuntimeCurses s -> (name : String) -> HasColor name s => ColorPair
+coreColor (RActive (MkCursesActive _ _ colors {csPrf} _ _)) name @{ItHasColor @{elem}} =
+  getColor colors csPrf elem
+
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
 coreAttr : RuntimeCurses s -> Attribute s -> Attribute
@@ -715,14 +759,12 @@ coreAttr _ Dim       = Dim
 coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
-coreAttr _ DefaultColors = CP defaultColorPair
-coreAttr (RActive (MkCursesActive _ _ colors {csPrf} _ _)) (Color name @{ItHasColor @{elem}}) =
-  let color = getColor colors csPrf elem
-  in  CP color
+coreAttr _ (Color DefaultColors) = CP defaultColorPair
+coreAttr rs (Color (Named name)) = CP (coreColor rs name)
 
 ||| Set the current color IF the atttribute in question is a color attribute.
 maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
-maybeSetCurrentColor (Color name @{ItHasColor @{elem}}) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+maybeSetCurrentColor (Color (Named name @{ItHasColor @{elem}})) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
   let color = getColor colors csPrf elem
   in
   RActive (MkCursesActive windows currentWindow colors {csPrf} (Just color) keyMap)
@@ -751,6 +793,12 @@ modNCursesAttr (EnableAttr  attr) rs =
   nEnableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (DisableAttr attr) rs =
   nDisableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
+modNCursesAttr (UpdateAttr attr color len) rs =
+  let cp = case color of
+                DefaultColors => defaultColorPair
+                Named name    => coreColor rs name
+  in
+  nChangeAttr' (getCoreWindow' rs) len (coreAttr rs attr) cp $> (maybeSetCurrentColor (Color color) rs)
 
 printNCurses : HasIO io =>
                IsActive s =>
@@ -894,6 +942,7 @@ runNCurses (ModAttr cmd) rs = do
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
+runNCurses (SetPos pos) rs = moveWindow (getCoreWindow' rs) pos.row pos.col $> ((), rs)
 runNCurses GetPos rs = do
   let win = getCoreWindow' rs
   y <- getYPos' win
