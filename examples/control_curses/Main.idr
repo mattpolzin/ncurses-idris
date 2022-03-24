@@ -33,20 +33,20 @@ run = Indexed.Do.do
   addColor "alert" White Red
   clear
   -- direct invocation
-  setAttr (Color "inverse")
+  setAttr (Color (Named "inverse"))
   putStr "Ctrl+C to exit\n\n"
   setAttr Underline
   putStr "Hello World\n\n"
-  setAttrs [(Color "alert"), Bold]
+  setAttrs [(Color (Named "alert")), Bold]
   putStr "THIS IS NOT A PROBLEM"
   setAttr Normal
   putStrLn "\n\nEnd of initial transmission."
   addWindow "win1" (MkPosition 35 55) (MkSize 20 30) Nothing
   setWindow "win1"
   clear
-  setAttr (Color "inverse")
+  setAttr (Color (Named "inverse"))
   putStrLn "hello from a window"
-  setAttr DefaultColors
+  setAttr (Color DefaultColors)
   refresh
   setWindow "main"
   -- pretty print
