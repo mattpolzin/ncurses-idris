@@ -91,7 +91,7 @@ instructions = indent ((width `minus` (length unpadded)) `div` 2) unpadded
     unpadded = "Ctrl+C to quit. 't' to toggle eyes!"
 
 drawLines : IsActive s => (color : String) -> HasColor color s => List Line -> NCurses () s s
-drawLines color xs = setAttr (Color color) >> traverse_ drawLine xs
+drawLines color xs = setAttr (Color (Named color)) >> traverse_ drawLine xs
   where
     drawLine : (Nat, Nat, Nat) -> NCurses () s s
     drawLine (row, col, len) = do
