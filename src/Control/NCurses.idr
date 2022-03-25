@@ -971,10 +971,14 @@ runNCurses GetCh rs@(RActive as@(MkCursesActive windows {w} ((MkRuntimeWindow (M
                  else do ch <- safeGetCh' (getCoreWindow as)
                          pure (ch, rewrite currentWindowPropsPrf e' wPrf in rs)
          else if keypad
-                then do ch <- getCh' (getCoreWindow as)
+                then do Just ch <- safeGetCh' (getCoreWindow as)
+                          | Nothing => pure (Left ' ', rewrite currentWindowPropsPrf e' wPrf in rs)
+                          --                  ^ TODO: this is no good, we should report this error rather than fudge it.
                         let keyOrCh = maybeToEither ch (lookup ch keyMap)
                         pure (keyOrCh, rewrite currentWindowPropsPrf e' wPrf in rs)
-                else do ch <- getCh' (getCoreWindow as)
+                else do Just ch <- safeGetCh' (getCoreWindow as)
+                          | Nothing => pure (' ', rewrite currentWindowPropsPrf e' wPrf in rs)
+                          --                  ^ TODO: this is no good, we should report this error rather than fudge it.
                         pure (ch, rewrite currentWindowPropsPrf e' wPrf in rs)
 runNCurses (InWindow _ @{_} @{ItHasWindow @{elem}} nc) rs@(RActive as) = do
   r <- runNCurses nc (RActive $ setRuntimeWindow elem as)

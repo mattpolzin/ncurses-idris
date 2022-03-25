@@ -1,0 +1,6 @@
+package key_logger
+
+depends = contrib, ncurses-idris
+
+executable = "key_logger"
+main = Main
