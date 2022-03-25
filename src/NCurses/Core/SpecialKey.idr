@@ -11,58 +11,58 @@ import Data.Either
 prim__keypad : AnyPtr -> Int -> PrimIO ()
 
 %foreign libhelper "keyF0"
-prim__keyF0 : PrimIO Char
+prim__keyF0 : PrimIO Int
 
 %foreign libhelper "keyF1"
-prim__keyF1 : PrimIO Char
+prim__keyF1 : PrimIO Int
 
 %foreign libhelper "keyF2"
-prim__keyF2 : PrimIO Char
+prim__keyF2 : PrimIO Int
 
 %foreign libhelper "keyF3"
-prim__keyF3 : PrimIO Char
+prim__keyF3 : PrimIO Int
 
 %foreign libhelper "keyF4"
-prim__keyF4 : PrimIO Char
+prim__keyF4 : PrimIO Int
 
 %foreign libhelper "keyF5"
-prim__keyF5 : PrimIO Char
+prim__keyF5 : PrimIO Int
 
 %foreign libhelper "keyF6"
-prim__keyF6 : PrimIO Char
+prim__keyF6 : PrimIO Int
 
 %foreign libhelper "keyF7"
-prim__keyF7 : PrimIO Char
+prim__keyF7 : PrimIO Int
 
 %foreign libhelper "keyF8"
-prim__keyF8 : PrimIO Char
+prim__keyF8 : PrimIO Int
 
 %foreign libhelper "keyF9"
-prim__keyF9 : PrimIO Char
+prim__keyF9 : PrimIO Int
 
 %foreign libhelper "keyF10"
-prim__keyF10 : PrimIO Char
+prim__keyF10 : PrimIO Int
 
 %foreign libhelper "keyF11"
-prim__keyF11 : PrimIO Char
+prim__keyF11 : PrimIO Int
 
 %foreign libhelper "keyF12"
-prim__keyF12 : PrimIO Char
+prim__keyF12 : PrimIO Int
 
 %foreign libhelper "keyUp"
-prim__keyUp : PrimIO Char
+prim__keyUp : PrimIO Int
 
 %foreign libhelper "keyDown"
-prim__keyDown : PrimIO Char
+prim__keyDown : PrimIO Int
 
 %foreign libhelper "keyLeft"
-prim__keyLeft : PrimIO Char
+prim__keyLeft : PrimIO Int
 
 %foreign libhelper "keyRight"
-prim__keyRight : PrimIO Char
+prim__keyRight : PrimIO Int
 
 %foreign libhelper "keyBackspace"
-prim__keyBackspace : PrimIO Char
+prim__keyBackspace : PrimIO Int
 
 ||| Keys that can be used when keypad is turned on.
 ||| See @keypad@ and @keypad'@.
@@ -134,24 +134,24 @@ allKeysCover Backspace = %search
 ||| See @keypad@ and @keypad'@.
 export
 fnKeyChar : HasIO io => Key -> io Char
-fnKeyChar F0        = primIO $ prim__keyF0
-fnKeyChar F1        = primIO $ prim__keyF1
-fnKeyChar F2        = primIO $ prim__keyF2
-fnKeyChar F3        = primIO $ prim__keyF3
-fnKeyChar F4        = primIO $ prim__keyF4
-fnKeyChar F5        = primIO $ prim__keyF5
-fnKeyChar F6        = primIO $ prim__keyF6
-fnKeyChar F7        = primIO $ prim__keyF7
-fnKeyChar F8        = primIO $ prim__keyF8
-fnKeyChar F9        = primIO $ prim__keyF9
-fnKeyChar F10       = primIO $ prim__keyF10
-fnKeyChar F11       = primIO $ prim__keyF11
-fnKeyChar F12       = primIO $ prim__keyF12
-fnKeyChar Up        = primIO $ prim__keyUp
-fnKeyChar Down      = primIO $ prim__keyDown
-fnKeyChar Left      = primIO $ prim__keyLeft
-fnKeyChar Right     = primIO $ prim__keyRight
-fnKeyChar Backspace = primIO $ prim__keyBackspace
+fnKeyChar F0        = cast <$> (primIO prim__keyF0)
+fnKeyChar F1        = cast <$> (primIO prim__keyF1)
+fnKeyChar F2        = cast <$> (primIO prim__keyF2)
+fnKeyChar F3        = cast <$> (primIO prim__keyF3)
+fnKeyChar F4        = cast <$> (primIO prim__keyF4)
+fnKeyChar F5        = cast <$> (primIO prim__keyF5)
+fnKeyChar F6        = cast <$> (primIO prim__keyF6)
+fnKeyChar F7        = cast <$> (primIO prim__keyF7)
+fnKeyChar F8        = cast <$> (primIO prim__keyF8)
+fnKeyChar F9        = cast <$> (primIO prim__keyF9)
+fnKeyChar F10       = cast <$> (primIO prim__keyF10)
+fnKeyChar F11       = cast <$> (primIO prim__keyF11)
+fnKeyChar F12       = cast <$> (primIO prim__keyF12)
+fnKeyChar Up        = cast <$> (primIO prim__keyUp)
+fnKeyChar Down      = cast <$> (primIO prim__keyDown)
+fnKeyChar Left      = cast <$> (primIO prim__keyLeft)
+fnKeyChar Right     = cast <$> (primIO prim__keyRight)
+fnKeyChar Backspace = cast <$> (primIO prim__keyBackspace)
 
 fnKeyPairing : HasIO io => Key -> (io Char, Key)
 fnKeyPairing k = (fnKeyChar k, k)
