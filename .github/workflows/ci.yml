@@ -53,6 +53,16 @@ jobs:
           cd examples/control_stateful
           make
           cd -
+      - name: Build in window example
+        run: |
+          cd examples/control_in_window
+          make
+          cd -
+      - name: Build key logger example
+        run: |
+          cd examples/key_logger
+          make
+          cd -
       - name: Build timed example
         run: |
           cd examples/timed
