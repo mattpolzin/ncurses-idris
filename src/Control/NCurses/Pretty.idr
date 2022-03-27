@@ -96,6 +96,6 @@ renderDoc = runConst . evalStateT [] . go
       go rest
 
 export
-printDoc : IsActive s => Doc (Attribute s) -> NCurses () s s
-printDoc = renderDoc . layoutPretty defaultLayoutOptions
+printDoc : IsActive s => {default defaultLayoutOptions layoutOptions : LayoutOptions} -> Doc (Attribute s) -> NCurses () s s
+printDoc {layoutOptions} = renderDoc . layoutPretty layoutOptions
 
