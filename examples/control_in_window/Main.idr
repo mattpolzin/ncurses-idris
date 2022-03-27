@@ -12,11 +12,13 @@ loop =
        _ => (liftIO $ sleep 1) >> loop
 
 inWin1 : IsActive s => InWindow "win1" s => HasColor "inverse" s => NCurses () s s
-inWin1 = do
+inWin1 = Indexed.Do.do
+  setPos (MkPosition 35 55)
+  setSize (MkSize 25 30)
   erase
-  setAttr (Color "inverse")
+  setAttr (Color (Named "inverse"))
   putStrLn "hello from a window"
-  setAttr DefaultColors
+  setAttr (Color DefaultColors)
   refresh
 
 inMainWin : IsActive s => InWindow "main" s => NCurses () s s
@@ -33,15 +35,15 @@ run = Indexed.Do.do
   addColor "alert" White Red
   clear
   -- direct invocation
-  setAttr (Color "inverse")
+  setAttr (Color (Named "inverse"))
   putStr "Ctrl+C to exit\n\n"
   setAttr Underline
   putStr "Hello World\n\n"
-  setAttrs [(Color "alert"), Bold]
+  setAttrs [(Color (Named "alert")), Bold]
   putStr "THIS IS NOT A PROBLEM"
   setAttr Normal
   putStrLn "\n\nEnd of initial transmission."
-  addWindow "win1" (MkPosition 35 55) (MkSize 20 30) Nothing
+  addWindow "win1" (MkPosition 0 0) (MkSize 1 1) Nothing
   inWindow "win1" inWin1
   inMainWin
   loop
