@@ -949,7 +949,7 @@ runNCurses GetPos rs = do
   x <- getXPos' win
   let offset : Nat -> Nat = (\coord => if currentWindowHasBorder' rs then (pred coord) else coord)
   pure (MkPosition (offset y) (offset x), rs)
-runNCurses (SetSize size) rs = setWindowSize (getCoreWindow' rs) size.cols size.rows $> ((), rs)
+runNCurses (SetSize size) rs = setWindowSize (getCoreWindow' rs) size.rows size.cols $> ((), rs)
 runNCurses (GetSize internal) rs = do
   (rows, cols) <- getMaxSize' (getCoreWindow' rs)
   let offset : Nat -> Nat = (\dim => if currentWindowHasBorder' rs && internal then (dim `minus` 2) else dim)
