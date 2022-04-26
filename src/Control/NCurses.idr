@@ -356,6 +356,11 @@ namespace Attribute
   updateAttr : IsActive s => Attribute s -> ColorAttr s -> (length : Maybe Nat) -> NCurses () s s
   updateAttr attr color length = ModAttr (UpdateAttr attr color length)
 
+  ||| Set the background color for the current window.
+  export
+  setBackground : IsActive s => ColorAttr s -> NCurses () s s
+  setBackground = ModAttr . SetBg
+
 --
 -- Output Commands
 --
@@ -788,17 +793,23 @@ modNCursesAttr : HasIO io =>
               -> RuntimeCurses s
               -> io (RuntimeCurses s)
 modNCursesAttr (SetAttr     attr) rs =
-  nSetAttr'     (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
+  nSetAttr'      (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (EnableAttr  attr) rs =
-  nEnableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
+  nEnableAttr'   (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (DisableAttr attr) rs =
-  nDisableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
-modNCursesAttr (UpdateAttr attr color len) rs =
+  nDisableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
+modNCursesAttr (UpdateAttr  attr color len) rs =
   let cp = case color of
                 DefaultColors => defaultColorPair
                 Named name    => coreColor rs name
   in
   nChangeAttr' (getCoreWindow' rs) len (coreAttr rs attr) cp $> (maybeSetCurrentColor (Color color) rs)
+modNCursesAttr (SetBg      color) rs =
+  let cp = case color of
+                DefaultColors => defaultColorPair
+                Named name    => coreColor rs name
+  in
+  setBackground' (getCoreWindow' rs) cp *> pure rs
 
 printNCurses : HasIO io =>
                IsActive s =>

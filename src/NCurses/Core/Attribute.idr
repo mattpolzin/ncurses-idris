@@ -62,6 +62,12 @@ prim__invisibleAttr : PrimIO Int
 %foreign libhelper "color_pair_attr"
 prim__colorPairAttr : Int -> PrimIO Int
 
+%foreign libncurses "bkgd"
+prim__setBackground : Int -> PrimIO ()
+
+%foreign libncurses "wbkgd"
+prim__setBackgroundWindow : AnyPtr -> Int -> PrimIO ()
+
 ||| Attributes that can be given to text within an ncurses window.
 public export
 data Attribute = Normal
@@ -212,4 +218,18 @@ nChangeAttrAt' (Win win) row col len attr cp =
       do attribute <- getAttribute attr
          primIO $ 
            prim__mvChangeAtWindow win (cast row) (cast col) length attribute (cast cp.idx) prim__getNullAnyPtr
+
+||| Set the background color of the standard window.
+export
+setBackground : HasIO io => ColorPair -> io ()
+setBackground cp = do
+  cp <- primIO $ prim__colorPairAttr (cast cp.idx)
+  primIO $ prim__setBackground cp
+
+||| Set the background color of the given window.
+export
+setBackground' : HasIO io => Window -> ColorPair -> io ()
+setBackground' (Win win) cp = do
+  cp <- primIO $ prim__colorPairAttr (cast cp.idx)
+  primIO $ prim__setBackgroundWindow win cp
 

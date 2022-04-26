@@ -233,6 +233,7 @@ namespace Attribute
     EnableAttr  : Attribute s -> AttrCmd s
     DisableAttr : Attribute s -> AttrCmd s
     UpdateAttr  : Attribute s -> ColorAttr s -> (length : Maybe Nat) -> AttrCmd s
+    SetBg       : ColorAttr s -> AttrCmd s
 
 ||| A Window border.
 public export
