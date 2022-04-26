@@ -16,6 +16,7 @@ run = Indexed.Do.do
   init
   clear
   addColor "green" Green Black
+  addColor "greenBg" Black Green 
   addColor "red" Black Red
   addWindow "fst" (MkPosition 0 0) (MkSize 9 8) (defaultBorder "green")
   setWindow "fst"
@@ -31,6 +32,9 @@ run = Indexed.Do.do
   setWindow "snd"
   putStrLn "a"
   putStrLn "bcd"
+  addWindow "thrd" (MkPosition 0 10) (MkSize 5 7) (defaultBorder "green")
+  setWindow "thrd"
+  setBackground (Named "greenBg")
   unsetWindow
   refreshAll
   loop
