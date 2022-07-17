@@ -1,9 +1,16 @@
 module Main
 
 import Data.Nat
+import Data.List
 import Data.String
+import Data.String.Extra
 import NCurses
 import System.Clock
+
+-- 200 rows: 0.828 _or_ 82.8% faster at low level
+
+rows : Nat
+rows = 200
 
 -- purposefully only using 1 color here for this particular perf test
 printRows : Nat -> (window : Window) -> (red : ColorPair) -> (alert : ColorPair) -> (inverse : ColorPair) -> IO ()
@@ -20,25 +27,23 @@ run = do
   alert   <- initColorPair 2 White Red
   red     <- initColorPair 3 Red Black
   stdWin  <- stdWindow
-  printRows 100 stdWin red alert inverse
+  printRows rows stdWin red alert inverse
   erase' stdWin
-  printRows 100 stdWin red alert inverse
+  printRows rows stdWin red alert inverse
   clear' stdWin
-  printRows 100 stdWin red alert inverse
-  secondary <- newWindow 100 100 0 0
-  printRows 100 secondary red alert inverse
+  printRows rows stdWin red alert inverse
+  secondary <- newWindow rows 100 0 0
+  printRows rows secondary red alert inverse
   erase' stdWin
-  printRows 100 secondary red alert inverse
+  printRows rows secondary red alert inverse
   clear' stdWin
-  printRows 100 secondary red alert inverse
+  printRows rows secondary red alert inverse
   deinitNCurses
 
 show' : Clock t -> String
 show' (MkClock seconds nanoseconds) =
-  let nanosecondDigits = 4
-      seconds = show seconds
-      quotient : Integer = cast $ 10 `power` minus 9 nanosecondDigits
-      nanoseconds = padRight nanosecondDigits '0' $ show (cast nanoseconds `div` quotient)
+  let seconds = show seconds
+      nanoseconds = padLeft 5 '0' $ show (cast nanoseconds `div` 10000)
   in  "\{seconds}.\{nanoseconds}"
 
 main : IO ()
@@ -47,4 +52,5 @@ main = do
   run
   t2 <- clockTime UTC
   let diff = timeDifference t2 t1
+--   putStrLn $ show $ nanoseconds diff
   putStrLn $ show' diff

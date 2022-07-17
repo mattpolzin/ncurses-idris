@@ -7,6 +7,9 @@ import Data.List
 import Data.String
 import System.Clock
 
+rows : Nat
+rows = 200
+
 -- purposefully only using 1 color here for this particular perf test
 prettyDoc : Nat -> Doc (Attribute (Active i ws w ["red", "alert", "inverse"]))
 prettyDoc rows =
@@ -20,32 +23,31 @@ run = Indexed.Do.do
   addColor "inverse" Black White
   addColor "alert" White Red
   addColor "red" Red Black
-  printDoc (prettyDoc 100)
+  printDoc (prettyDoc rows)
   erase
-  printDoc (prettyDoc 100)
+  printDoc (prettyDoc rows)
   clear
-  printDoc (prettyDoc 100)
-  addWindow "secondary" (MkPosition 0 0) (MkSize 100 100) Nothing
+  printDoc (prettyDoc rows)
+  addWindow "secondary" (MkPosition 0 0) (MkSize rows 100) Nothing
   setWindow "secondary"
-  printDoc (prettyDoc 100)
+  printDoc (prettyDoc rows)
   erase
-  printDoc (prettyDoc 100)
+  printDoc (prettyDoc rows)
   clear
-  printDoc (prettyDoc 100)
+  printDoc (prettyDoc rows)
   deinit
 
 show' : Clock t -> String
 show' (MkClock seconds nanoseconds) =
-  let nanosecondDigits = 4
-      seconds = show seconds
-      quotient : Integer = cast $ 10 `power` minus 9 nanosecondDigits
-      nanoseconds = padRight nanosecondDigits '0' $ show (cast nanoseconds `div` quotient)
+  let seconds = show seconds
+      nanoseconds = padLeft 5 '0' $ show (cast nanoseconds `div` 10000)
   in  "\{seconds}.\{nanoseconds}"
 
 main : IO ()
-main = do
+main = Prelude.do
   t1 <- clockTime UTC
   withNCurses run
   t2 <- clockTime UTC
   let diff = timeDifference t2 t1
+--   putStrLn $ show $ nanoseconds diff
   putStrLn $ show' diff
