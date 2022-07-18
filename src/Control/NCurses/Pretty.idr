@@ -93,13 +93,9 @@ renderDoc = runConst . evalStateT [] . go
       put attrs
       go rest
     go (SAnnPush attr rest) = do
-      attrs <- get
-      if (head' attrs == Just attr)
-         then go rest
-         else do
-           lift . C $ enableAttr attr
-           modify (attr ::)
-           go rest
+      lift . C $ enableAttr attr
+      modify (attr ::)
+      go rest
 
 export
 printDoc : IsActive s => {default defaultLayoutOptions layoutOptions : LayoutOptions} -> Doc (Attribute s) -> NCurses () s s
