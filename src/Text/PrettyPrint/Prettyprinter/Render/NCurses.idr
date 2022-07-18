@@ -97,7 +97,11 @@ renderNCurses = liftIO . evalStateT [] . go
       put attrs
       go rest
     go (SAnnPush attr rest) = do
-      lift $ nEnableAttr attr
-      modify (attr ::)
-      go rest
+      attrs <- get
+      if (head' attrs == Just attr)
+         then go rest
+         else do
+           lift $ nEnableAttr attr
+           modify (attr ::)
+           go rest
 

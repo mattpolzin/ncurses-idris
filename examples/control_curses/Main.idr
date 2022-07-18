@@ -22,6 +22,7 @@ prettyDoc =
                 , indent 2 $ "->" <+> line <+> (indent 2 "**")
                 ]
        , underline "End of final transmission."
+       , pretty "(no formatting anymore)"
        ]
 
 run : NCurses () Inactive Inactive
@@ -38,9 +39,9 @@ run = Indexed.Do.do
   setAttr Underline
   putStr "Hello World\n\n"
   setAttrs [(Color (Named "alert")), Bold]
-  putStr "THIS IS NOT A PROBLEM"
+  putStr "THIS IS NOT A PROBLEM\n\n"
   setAttr Normal
-  putStrLn "\n\nEnd of initial transmission."
+  putStrLn "End of initial transmission."
   addWindow "win1" (MkPosition 35 55) (MkSize 20 30) Nothing
   setWindow "win1"
   clear

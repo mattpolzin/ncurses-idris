@@ -7,12 +7,26 @@ import Data.List
 import Data.String
 import System.Clock
 
+----
+---- IMPLEMENTED IMPROVEMENTS
+----
+
+-- 7.5% of perf test time saved by modifying printDoc (NCurses.Pretty) 
+-- to only SAnnPush an attribute if it was not already at the top of
+-- the stack.
+
+
+----
+---- NOTES
+----
+
 -- Control.NCurses perf test spends 18% of its time performing
 -- ModAttr commands. short circuiting for unchanged current color
 -- does not seem to save much time.
 
 -- Control.NCurses perf test spends 3% of its time performing
 -- Move commands.
+
 
 rows : Nat
 rows = 200

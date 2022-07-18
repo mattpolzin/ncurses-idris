@@ -58,6 +58,16 @@ Eq Color where
   White   == White   = True
   _ == _ = False
 
+Show Color where
+  show Black = "Black"
+  show Red = "Red"
+  show Green = "Green"
+  show Yellow = "Yellow"
+  show Blue = "Blue"
+  show Magenta = "Magenta"
+  show Cyan = "Cyan"
+  show White = "White"
+
 getColor : HasIO io => Color -> io Int
 getColor color = case color of
                       Black   => primIO $ prim__blackColor
@@ -77,6 +87,10 @@ data ColorPair = MkColorPair Nat Color Color
 export
 Eq ColorPair where
   (MkColorPair idx1 f1 b1) == (MkColorPair idx2 f2 b2) = idx1 == idx2 && f1 == f2 && b1 == b2
+
+export
+Show ColorPair where
+  show (MkColorPair idx foreground background) = "\{show idx}: \{show foreground}/\{show background}"
 
 ||| Get the index within ncurses where the given color
 ||| pair can be referenced. In almost all situations, this
