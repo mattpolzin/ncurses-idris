@@ -11,6 +11,9 @@ import System.Clock
 -- ModAttr commands. short circuiting for unchanged current color
 -- does not seem to save much time.
 
+-- Control.NCurses perf test spends 3% of its time performing
+-- Move commands.
+
 rows : Nat
 rows = 200
 

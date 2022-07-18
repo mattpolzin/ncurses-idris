@@ -840,11 +840,10 @@ printNCurses (VLine ch n) rs = nVerticalLine'   (getCoreWindow' rs) ch n $> rs
 printNCurses (HLine ch n) rs = nHorizontalLine' (getCoreWindow' rs) ch n $> rs
 
 printNCurses (Move (MkPosition row col)) rs@(RActive as) =
-  pure rs
---   nMoveCursor' (getCoreWindow as) (offset row) (offset col) $> rs
---   where
---     offset : Nat -> Nat
---     offset x = if (currentWindowHasBorder as) then (S x) else x
+  nMoveCursor' (getCoreWindow as) (offset row) (offset col) $> rs
+  where
+    offset : Nat -> Nat
+    offset x = if (currentWindowHasBorder as) then (S x) else x
 
 printNCurses (PutStr newline str) rs@(RActive as) = do
     let win = getCoreWindow as
