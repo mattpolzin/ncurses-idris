@@ -46,6 +46,18 @@ data Color = Black
            | Cyan
            | White
 
+export
+Eq Color where
+  Black   == Black   = True
+  Red     == Red     = True
+  Green   == Green   = True
+  Yellow  == Yellow  = True
+  Blue    == Blue    = True
+  Magenta == Magenta = True
+  Cyan    == Cyan    = True
+  White   == White   = True
+  _ == _ = False
+
 getColor : HasIO io => Color -> io Int
 getColor color = case color of
                       Black   => primIO $ prim__blackColor
@@ -56,12 +68,15 @@ getColor color = case color of
                       Magenta => primIO $ prim__magentaColor
                       Cyan    => primIO $ prim__cyanColor
                       White   => primIO $ prim__whiteColor
-               
 
 ||| Color pairs represent both a foreground and background
 ||| color.
 export
 data ColorPair = MkColorPair Nat Color Color
+
+export
+Eq ColorPair where
+  (MkColorPair idx1 f1 b1) == (MkColorPair idx2 f2 b2) = idx1 == idx2 && f1 == f2 && b1 == b2
 
 ||| Get the index within ncurses where the given color
 ||| pair can be referenced. In almost all situations, this

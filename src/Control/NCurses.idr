@@ -752,6 +752,10 @@ coreColor : RuntimeCurses s -> (name : String) -> HasColor name s => ColorPair
 coreColor (RActive (MkCursesActive _ _ colors {csPrf} _ _)) name @{ItHasColor @{elem}} =
   getColor colors csPrf elem
 
+coreColorAttr : RuntimeCurses s -> ColorAttr s -> ColorPair
+coreColorAttr _ DefaultColors = defaultColorPair
+coreColorAttr rs (Named name) = (coreColor rs name)
+
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
 coreAttr : RuntimeCurses s -> Attribute s -> Attribute
@@ -764,15 +768,20 @@ coreAttr _ Dim       = Dim
 coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
-coreAttr _ (Color DefaultColors) = CP defaultColorPair
-coreAttr rs (Color (Named name)) = CP (coreColor rs name)
+coreAttr rs (Color c) = CP $ coreColorAttr rs c
 
-||| Set the current color IF the atttribute in question is a color attribute.
-maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
-maybeSetCurrentColor (Color (Named name @{ItHasColor @{elem}})) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+||| Set the current color on the runtime state.
+setCurrentColor : IsActive s => ColorAttr s -> RuntimeCurses s -> RuntimeCurses s
+setCurrentColor (Named name @{ItHasColor @{elem}}) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
   let color = getColor colors csPrf elem
   in
   RActive (MkCursesActive windows currentWindow colors {csPrf} (Just color) keyMap)
+setCurrentColor DefaultColors (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just defaultColorPair) keyMap)
+
+||| Set the current color IF the attribute in question is a color attribute.
+maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
+maybeSetCurrentColor (Color attr) rs = setCurrentColor attr rs
 maybeSetCurrentColor _ rs = rs
 
 ||| Unset the current color IF the attribute in question is a color attribute.
@@ -795,7 +804,7 @@ modNCursesAttr : HasIO io =>
 modNCursesAttr (SetAttr     attr) rs =
   nSetAttr'      (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (EnableAttr  attr) rs =
-  nEnableAttr'   (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
+  nEnableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (DisableAttr attr) rs =
   nDisableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
 modNCursesAttr (UpdateAttr  attr color len) rs =

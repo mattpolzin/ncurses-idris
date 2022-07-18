@@ -7,6 +7,10 @@ import Data.List
 import Data.String
 import System.Clock
 
+-- Control.NCurses perf test spends 18% of its time performing
+-- ModAttr commands. short circuiting for unchanged current color
+-- does not seem to save much time.
+
 rows : Nat
 rows = 200
 
