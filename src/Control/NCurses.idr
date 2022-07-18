@@ -41,17 +41,22 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   Refresh     : IsActive s => NCurses () s s
   RefreshAll  : IsActive s => NCurses () s s
   Output      : IsActive s => OutputCmd s -> NCurses () s s
+  ||| Get the position of the cursor within the current window.
+  GetCursPos  : IsActive s => NCurses Position s s 
   SetEcho     : IsActive s => (on : Bool) -> NCurses () s (setEcho s on)
   SetCBreak   : IsActive s => (on : Bool) -> NCurses () s (setCBreak s on)
   SetNoDelay  : IsActive s => (on : Bool) -> NCurses () s (setNoDelay s on)
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s s
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (setKeypad s on)
-  GetPos      : IsActive s => NCurses Position s s
-  SetPos      : IsActive s => Position -> NCurses () s s
+  ||| Get the position of the current window.
+  GetWinPos   : IsActive s => NCurses Position s s
+  ||| Set the position of the current window.
+  SetWinPos   : IsActive s => Position -> NCurses () s s
   ||| Get the size of the current window. If `internal` is @True@, then
   ||| will subtract the space taken up by any border a window has.
-  GetSize     : IsActive s => (internal : Bool) -> NCurses Size s s
-  SetSize     : IsActive s => Size -> NCurses () s s
+  GetWinSize  : IsActive s => (internal : Bool) -> NCurses Size s s
+  ||| Set thte size of the current window.
+  SetWinSize  : IsActive s => Size -> NCurses () s s
   GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s s
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
@@ -264,15 +269,20 @@ export
 refreshAll : IsActive s => NCurses () s s
 refreshAll = RefreshAll
 
-||| Get the cursor position within the current window.
+||| Get the position of the cursor within the current window.
 export
 getPos : IsActive s => NCurses Position s s
-getPos = GetPos
+getPos = GetCursPos
+
+||| Get the position of the current window.
+export
+getWindowPos : IsActive s => NCurses Position s s
+getWindowPos = GetWinPos
 
 ||| Set the position of the current window.
 export
-setPos : IsActive s => Position -> NCurses () s s
-setPos = SetPos
+setWindowPos : IsActive s => Position -> NCurses () s s
+setWindowPos = SetWinPos
 
 ||| Get the size of the current window.
 |||
@@ -282,15 +292,15 @@ setPos = SetPos
 |||            be the space taken up by the window, not the space
 |||            available inside the window.
 export
-getSize : IsActive s => (internal : Bool) -> NCurses Size s s
-getSize = GetSize
+getWindowSize : IsActive s => (internal : Bool) -> NCurses Size s s
+getWindowSize = GetWinSize
 
 ||| Set the size of the current window. If the window has a border,
 ||| this size includes the single row & column taken up by the border
 ||| on all sides.
 export
-setSize : IsActive s => Size -> NCurses () s s
-setSize = SetSize
+setWindowSize : IsActive s => Size -> NCurses () s s
+setWindowSize = SetWinSize
 
 --
 -- Attribute Commands
@@ -830,10 +840,11 @@ printNCurses (VLine ch n) rs = nVerticalLine'   (getCoreWindow' rs) ch n $> rs
 printNCurses (HLine ch n) rs = nHorizontalLine' (getCoreWindow' rs) ch n $> rs
 
 printNCurses (Move (MkPosition row col)) rs@(RActive as) =
-  nMoveCursor' (getCoreWindow as) (offset row) (offset col) $> rs
-  where
-    offset : Nat -> Nat
-    offset x = if (currentWindowHasBorder as) then (S x) else x
+  pure rs
+--   nMoveCursor' (getCoreWindow as) (offset row) (offset col) $> rs
+--   where
+--     offset : Nat -> Nat
+--     offset x = if (currentWindowHasBorder as) then (S x) else x
 
 printNCurses (PutStr newline str) rs@(RActive as) = do
     let win = getCoreWindow as
@@ -962,15 +973,18 @@ runNCurses (ModAttr cmd) rs = do
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
-runNCurses (SetPos pos) rs = moveWindow (getCoreWindow' rs) pos.row pos.col $> ((), rs)
-runNCurses GetPos rs = do
+runNCurses GetCursPos rs = do
   let win = getCoreWindow' rs
   y <- getYPos' win
   x <- getXPos' win
   let offset : Nat -> Nat = (\coord => if currentWindowHasBorder' rs then (pred coord) else coord)
   pure (MkPosition (offset y) (offset x), rs)
-runNCurses (SetSize size) rs = setWindowSize (getCoreWindow' rs) size.rows size.cols $> ((), rs)
-runNCurses (GetSize internal) rs = do
+runNCurses (SetWinPos pos) rs = moveWindow (getCoreWindow' rs) pos.row pos.col $> ((), rs)
+runNCurses GetWinPos rs = do
+  (y, x) <- getWindowPos' (getCoreWindow' rs)
+  pure ((MkPosition y x), rs)
+runNCurses (SetWinSize size) rs = setWindowSize (getCoreWindow' rs) size.rows size.cols $> ((), rs)
+runNCurses (GetWinSize internal) rs = do
   (rows, cols) <- getMaxSize' (getCoreWindow' rs)
   let offset : Nat -> Nat = (\dim => if currentWindowHasBorder' rs && internal then (dim `minus` 2) else dim)
   pure (MkSize (offset rows) (offset cols), rs)
