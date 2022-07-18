@@ -7,7 +7,7 @@ import Data.String.Extra
 import NCurses
 import System.Clock
 
--- 200 rows: 0.828 _or_ 82.8% faster at low level
+-- 200 rows: 0.828 _or_ 82.8% faster at low level before any optimizations
 
 rows : Nat
 rows = 200

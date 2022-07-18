@@ -780,12 +780,14 @@ coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
 coreAttr rs (Color c) = CP $ coreColorAttr rs c
 
+setCurrentColorPair : IsActive s => ColorPair -> RuntimeCurses s -> RuntimeCurses s
+setCurrentColorPair cp (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just cp) keyMap)
+
 ||| Set the current color on the runtime state.
 setCurrentColor : IsActive s => ColorAttr s -> RuntimeCurses s -> RuntimeCurses s
-setCurrentColor (Named name @{ItHasColor @{elem}}) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
-  let color = getColor colors csPrf elem
-  in
-  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just color) keyMap)
+setCurrentColor (Named name @{ItHasColor @{elem}}) rs@(RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  setCurrentColorPair (getColor colors csPrf elem) rs
 setCurrentColor DefaultColors (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
   RActive (MkCursesActive windows currentWindow colors {csPrf} (Just defaultColorPair) keyMap)
 
@@ -805,6 +807,9 @@ currentWindowHasBorder (MkCursesActive _ ((MkRuntimeWindow _ border _) ** _) _ _
 
 currentWindowHasBorder' : IsActive s => RuntimeCurses s -> Bool
 currentWindowHasBorder' (RActive as) = currentWindowHasBorder as
+--
+-- TODO: optimize away consecutive DisableAttr/EnableAttr for the same attribute.
+--
 
 modNCursesAttr : HasIO io =>
                  IsActive s =>
