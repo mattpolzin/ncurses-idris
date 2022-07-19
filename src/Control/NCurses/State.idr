@@ -220,6 +220,11 @@ namespace Attribute
     (Named name1)  == (Named name2)  = name1 == name2
     _ == _ = False
 
+  export
+  Show (ColorAttr s) where
+    show DefaultColors = "Default"
+    show (Named name)  = name
+
   public export
   data Attribute : CursesState -> Type where
     Normal        : Attribute s
@@ -246,6 +251,19 @@ namespace Attribute
     Invisible  == Invisible  = True
     (Color c1) == (Color c2) = c1 == c2
     _ == _ = False
+
+  export
+  Show (Attribute s) where
+    show Normal    = "Normal"
+    show Underline = "Underline"
+    show Standout  = "Standout"
+    show Reverse   = "Reverse"
+    show Blink     = "Blink"
+    show Dim       = "Dim"
+    show Bold      = "Bold"
+    show Protected = "Protected"
+    show Invisible = "Invisible"
+    show (Color c) = "Color: \{show c}"
 
   public export
   data AttrCmd : CursesState -> Type where

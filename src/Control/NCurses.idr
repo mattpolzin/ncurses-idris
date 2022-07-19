@@ -807,9 +807,6 @@ currentWindowHasBorder (MkCursesActive _ ((MkRuntimeWindow _ border _) ** _) _ _
 
 currentWindowHasBorder' : IsActive s => RuntimeCurses s -> Bool
 currentWindowHasBorder' (RActive as) = currentWindowHasBorder as
---
--- TODO: optimize away consecutive DisableAttr/EnableAttr for the same attribute.
---
 
 modNCursesAttr : HasIO io =>
                  IsActive s =>
@@ -819,7 +816,7 @@ modNCursesAttr : HasIO io =>
 modNCursesAttr (SetAttr     attr) rs =
   nSetAttr'      (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (EnableAttr  attr) rs =
-  nEnableAttr' (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
+  nEnableAttr'   (getCoreWindow' rs) (coreAttr rs attr) $> (maybeSetCurrentColor attr rs)
 modNCursesAttr (DisableAttr attr) rs =
   nDisableAttr'  (getCoreWindow' rs) (coreAttr rs attr) $> (maybeUnsetCurrentColor attr rs)
 modNCursesAttr (UpdateAttr  attr color len) rs =
@@ -885,6 +882,7 @@ printNCurses (PutStr newline str) rs@(RActive as) = do
           final = if newline then allTxt ++ lineInfix else allTxt
       in  final
 
+||| Draw a border around the given window.
 drawBorder : HasIO io => Core.Window -> (currentColor : Maybe ColorPair) -> Maybe RuntimeBorder -> io ()
 drawBorder _ _ Nothing = pure ()
 drawBorder win currentColor (Just (cp, (Evidence _ border))) = do
@@ -895,6 +893,7 @@ drawBorder win currentColor (Just (cp, (Evidence _ border))) = do
        Just cp' => nEnableAttr' win (CP cp')
        Nothing  => nDisableAttr' win (CP cp)
 
+||| Draw the current window's border (if it has one).
 drawCurrentBorder : HasIO io => CursesActive ws w cs -> io ()
 drawCurrentBorder (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ currentColor _) =
   drawBorder win currentColor border
@@ -904,8 +903,22 @@ refreshAllRuntime [] _ = pure ()
 refreshAllRuntime ((MkRuntimeWindow _ border win) :: ws) currentColor =
   drawBorder win currentColor border *> refresh' win *> refreshAllRuntime ws currentColor
 
+||| Run an NCurses routine
 runNCurses : HasIO io => NCurses a s1 s2 -> RuntimeCurses s1 -> io (a, RuntimeCurses s2)
+----
 runNCurses (Pure x) rs = pure (x, rs)
+runNCurses (Bind mod@(ModAttr (DisableAttr x)) f) rs with (f ())
+  runNCurses (Bind mod@(ModAttr (DisableAttr x)) f) rs | (Bind mod2@(ModAttr (EnableAttr y)) f2) =
+    -- skip both modifications if they cancel:
+    if x == y
+       then runNCurses (f2 ()) rs
+       else do
+         ((), rs') <- runNCurses mod rs
+         (x, rs'') <- runNCurses mod2 rs'
+         runNCurses (f2 x) rs''
+  runNCurses (Bind mod@(ModAttr (DisableAttr x)) f) rs | next = do
+    ((), rs') <- runNCurses mod rs
+    runNCurses next rs'
 runNCurses (Bind x f) rs = do
   (x', rs') <- runNCurses x rs
   runNCurses (f x') rs'
