@@ -39,6 +39,12 @@ prim__getYWindow : AnyPtr -> PrimIO Int
 %foreign libncurses "getcurx"
 prim__getXWindow : AnyPtr -> PrimIO Int
 
+%foreign libncurses "getbegy"
+prim__begYWindow : AnyPtr -> PrimIO Int
+
+%foreign libncurses "getbegx"
+prim__begXWindow : AnyPtr -> PrimIO Int
+
 %foreign libncurses "refresh"
 prim__refresh : PrimIO ()
 
@@ -167,6 +173,13 @@ moveWindow (Win win) y x = do
     if res == err
        then False
        else True
+
+||| As is normal for ncurses, returns (y, x).
+export
+getWindowPos' : HasIO io => Window -> io (Nat, Nat)
+getWindowPos' (Win win) = do y <- (primIO $ prim__begYWindow win)
+                             x <- (primIO $ prim__begXWindow win)
+                             pure (fromInteger (cast y), fromInteger (cast x))
 
 ||| Resize an ncurses window.
 |||

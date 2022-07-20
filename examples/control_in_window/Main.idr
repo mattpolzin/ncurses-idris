@@ -13,8 +13,8 @@ loop =
 
 inWin1 : IsActive s => InWindow "win1" s => HasColor "inverse" s => NCurses () s s
 inWin1 = Indexed.Do.do
-  setPos (MkPosition 35 55)
-  setSize (MkSize 25 30)
+  setWindowPos (MkPosition 35 55)
+  setWindowSize (MkSize 25 30)
   erase
   setAttr (Color (Named "inverse"))
   putStrLn "hello from a window"
@@ -40,9 +40,9 @@ run = Indexed.Do.do
   setAttr Underline
   putStr "Hello World\n\n"
   setAttrs [(Color (Named "alert")), Bold]
-  putStr "THIS IS NOT A PROBLEM"
+  putStr "THIS IS NOT A PROBLEM\n\n"
   setAttr Normal
-  putStrLn "\n\nEnd of initial transmission."
+  putStrLn "End of initial transmission."
   addWindow "win1" (MkPosition 0 0) (MkSize 1 1) Nothing
   inWindow "win1" inWin1
   inMainWin

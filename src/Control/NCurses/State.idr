@@ -214,6 +214,17 @@ namespace Attribute
     DefaultColors : ColorAttr s
     Named : (name : String) -> HasColor name s => ColorAttr s
 
+  export
+  Eq (ColorAttr s) where
+    DefaultColors == DefaultColors = True
+    (Named name1)  == (Named name2)  = name1 == name2
+    _ == _ = False
+
+  export
+  Show (ColorAttr s) where
+    show DefaultColors = "Default"
+    show (Named name)  = name
+
   public export
   data Attribute : CursesState -> Type where
     Normal        : Attribute s
@@ -226,6 +237,33 @@ namespace Attribute
     Protected     : Attribute s
     Invisible     : Attribute s
     Color         : ColorAttr s -> Attribute s
+
+  export
+  Eq (Attribute s) where
+    Normal     == Normal     = True
+    Underline  == Underline  = True
+    Standout   == Standout   = True
+    Reverse    == Reverse    = True
+    Blink      == Blink      = True
+    Dim        == Dim        = True
+    Bold       == Bold       = True
+    Protected  == Protected  = True
+    Invisible  == Invisible  = True
+    (Color c1) == (Color c2) = c1 == c2
+    _ == _ = False
+
+  export
+  Show (Attribute s) where
+    show Normal    = "Normal"
+    show Underline = "Underline"
+    show Standout  = "Standout"
+    show Reverse   = "Reverse"
+    show Blink     = "Blink"
+    show Dim       = "Dim"
+    show Bold      = "Bold"
+    show Protected = "Protected"
+    show Invisible = "Invisible"
+    show (Color c) = "Color: \{show c}"
 
   public export
   data AttrCmd : CursesState -> Type where

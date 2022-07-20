@@ -41,17 +41,22 @@ data NCurses : (a : Type) -> CursesState -> CursesState -> Type where
   Refresh     : IsActive s => NCurses () s s
   RefreshAll  : IsActive s => NCurses () s s
   Output      : IsActive s => OutputCmd s -> NCurses () s s
+  ||| Get the position of the cursor within the current window.
+  GetCursPos  : IsActive s => NCurses Position s s 
   SetEcho     : IsActive s => (on : Bool) -> NCurses () s (setEcho s on)
   SetCBreak   : IsActive s => (on : Bool) -> NCurses () s (setCBreak s on)
   SetNoDelay  : IsActive s => (on : Bool) -> NCurses () s (setNoDelay s on)
   SetCursor   : IsActive s => CursorVisibility -> NCurses () s s
   SetKeypad   : IsActive s => (on : Bool) -> NCurses () s (setKeypad s on)
-  GetPos      : IsActive s => NCurses Position s s
-  SetPos      : IsActive s => Position -> NCurses () s s
+  ||| Get the position of the current window.
+  GetWinPos   : IsActive s => NCurses Position s s
+  ||| Set the position of the current window.
+  SetWinPos   : IsActive s => Position -> NCurses () s s
   ||| Get the size of the current window. If `internal` is @True@, then
   ||| will subtract the space taken up by any border a window has.
-  GetSize     : IsActive s => (internal : Bool) -> NCurses Size s s
-  SetSize     : IsActive s => Size -> NCurses () s s
+  GetWinSize  : IsActive s => (internal : Bool) -> NCurses Size s s
+  ||| Set thte size of the current window.
+  SetWinSize  : IsActive s => Size -> NCurses () s s
   GetCh       : IsActive s => NCurses (NextIn (currentWindow s)) s s
 
   -- TODO: ideally remove this 'escape hatch' and instead specifically allow
@@ -264,15 +269,20 @@ export
 refreshAll : IsActive s => NCurses () s s
 refreshAll = RefreshAll
 
-||| Get the cursor position within the current window.
+||| Get the position of the cursor within the current window.
 export
 getPos : IsActive s => NCurses Position s s
-getPos = GetPos
+getPos = GetCursPos
+
+||| Get the position of the current window.
+export
+getWindowPos : IsActive s => NCurses Position s s
+getWindowPos = GetWinPos
 
 ||| Set the position of the current window.
 export
-setPos : IsActive s => Position -> NCurses () s s
-setPos = SetPos
+setWindowPos : IsActive s => Position -> NCurses () s s
+setWindowPos = SetWinPos
 
 ||| Get the size of the current window.
 |||
@@ -282,15 +292,15 @@ setPos = SetPos
 |||            be the space taken up by the window, not the space
 |||            available inside the window.
 export
-getSize : IsActive s => (internal : Bool) -> NCurses Size s s
-getSize = GetSize
+getWindowSize : IsActive s => (internal : Bool) -> NCurses Size s s
+getWindowSize = GetWinSize
 
 ||| Set the size of the current window. If the window has a border,
 ||| this size includes the single row & column taken up by the border
 ||| on all sides.
 export
-setSize : IsActive s => Size -> NCurses () s s
-setSize = SetSize
+setWindowSize : IsActive s => Size -> NCurses () s s
+setWindowSize = SetWinSize
 
 --
 -- Attribute Commands
@@ -752,6 +762,10 @@ coreColor : RuntimeCurses s -> (name : String) -> HasColor name s => ColorPair
 coreColor (RActive (MkCursesActive _ _ colors {csPrf} _ _)) name @{ItHasColor @{elem}} =
   getColor colors csPrf elem
 
+coreColorAttr : RuntimeCurses s -> ColorAttr s -> ColorPair
+coreColorAttr _ DefaultColors = defaultColorPair
+coreColorAttr rs (Named name) = (coreColor rs name)
+
 ||| Extract a safe attribute in the given state into
 ||| a core attribute.
 coreAttr : RuntimeCurses s -> Attribute s -> Attribute
@@ -764,15 +778,22 @@ coreAttr _ Dim       = Dim
 coreAttr _ Bold      = Bold
 coreAttr _ Protected = Protected
 coreAttr _ Invisible = Invisible
-coreAttr _ (Color DefaultColors) = CP defaultColorPair
-coreAttr rs (Color (Named name)) = CP (coreColor rs name)
+coreAttr rs (Color c) = CP $ coreColorAttr rs c
 
-||| Set the current color IF the atttribute in question is a color attribute.
+setCurrentColorPair : IsActive s => ColorPair -> RuntimeCurses s -> RuntimeCurses s
+setCurrentColorPair cp (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just cp) keyMap)
+
+||| Set the current color on the runtime state.
+setCurrentColor : IsActive s => ColorAttr s -> RuntimeCurses s -> RuntimeCurses s
+setCurrentColor (Named name @{ItHasColor @{elem}}) rs@(RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  setCurrentColorPair (getColor colors csPrf elem) rs
+setCurrentColor DefaultColors (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
+  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just defaultColorPair) keyMap)
+
+||| Set the current color IF the attribute in question is a color attribute.
 maybeSetCurrentColor : IsActive s => Attribute s -> RuntimeCurses s -> RuntimeCurses s
-maybeSetCurrentColor (Color (Named name @{ItHasColor @{elem}})) (RActive (MkCursesActive windows currentWindow colors {csPrf} _ keyMap)) =
-  let color = getColor colors csPrf elem
-  in
-  RActive (MkCursesActive windows currentWindow colors {csPrf} (Just color) keyMap)
+maybeSetCurrentColor (Color attr) rs = setCurrentColor attr rs
 maybeSetCurrentColor _ rs = rs
 
 ||| Unset the current color IF the attribute in question is a color attribute.
@@ -861,6 +882,7 @@ printNCurses (PutStr newline str) rs@(RActive as) = do
           final = if newline then allTxt ++ lineInfix else allTxt
       in  final
 
+||| Draw a border around the given window.
 drawBorder : HasIO io => Core.Window -> (currentColor : Maybe ColorPair) -> Maybe RuntimeBorder -> io ()
 drawBorder _ _ Nothing = pure ()
 drawBorder win currentColor (Just (cp, (Evidence _ border))) = do
@@ -871,6 +893,7 @@ drawBorder win currentColor (Just (cp, (Evidence _ border))) = do
        Just cp' => nEnableAttr' win (CP cp')
        Nothing  => nDisableAttr' win (CP cp)
 
+||| Draw the current window's border (if it has one).
 drawCurrentBorder : HasIO io => CursesActive ws w cs -> io ()
 drawCurrentBorder (MkCursesActive _ ((MkRuntimeWindow props border win) ** _) _ currentColor _) =
   drawBorder win currentColor border
@@ -880,8 +903,22 @@ refreshAllRuntime [] _ = pure ()
 refreshAllRuntime ((MkRuntimeWindow _ border win) :: ws) currentColor =
   drawBorder win currentColor border *> refresh' win *> refreshAllRuntime ws currentColor
 
+||| Run an NCurses routine
 runNCurses : HasIO io => NCurses a s1 s2 -> RuntimeCurses s1 -> io (a, RuntimeCurses s2)
+----
 runNCurses (Pure x) rs = pure (x, rs)
+runNCurses (Bind mod@(ModAttr (DisableAttr x)) f) rs with (f ())
+  runNCurses (Bind mod@(ModAttr (DisableAttr x)) f) rs | (Bind mod2@(ModAttr (EnableAttr y)) f2) =
+    -- skip both modifications if they cancel:
+    if x == y
+       then runNCurses (f2 ()) rs
+       else do
+         ((), rs') <- runNCurses mod rs
+         (x, rs'') <- runNCurses mod2 rs'
+         runNCurses (f2 x) rs''
+  runNCurses (Bind mod@(ModAttr (DisableAttr x)) f) rs | next = do
+    ((), rs') <- runNCurses mod rs
+    runNCurses next rs'
 runNCurses (Bind x f) rs = do
   (x', rs') <- runNCurses x rs
   runNCurses (f x') rs'
@@ -953,15 +990,18 @@ runNCurses (ModAttr cmd) rs = do
 runNCurses (Output cmd) rs = do
   rs' <- printNCurses cmd rs
   pure ((), rs')
-runNCurses (SetPos pos) rs = moveWindow (getCoreWindow' rs) pos.row pos.col $> ((), rs)
-runNCurses GetPos rs = do
+runNCurses GetCursPos rs = do
   let win = getCoreWindow' rs
   y <- getYPos' win
   x <- getXPos' win
   let offset : Nat -> Nat = (\coord => if currentWindowHasBorder' rs then (pred coord) else coord)
   pure (MkPosition (offset y) (offset x), rs)
-runNCurses (SetSize size) rs = setWindowSize (getCoreWindow' rs) size.rows size.cols $> ((), rs)
-runNCurses (GetSize internal) rs = do
+runNCurses (SetWinPos pos) rs = moveWindow (getCoreWindow' rs) pos.row pos.col $> ((), rs)
+runNCurses GetWinPos rs = do
+  (y, x) <- getWindowPos' (getCoreWindow' rs)
+  pure ((MkPosition y x), rs)
+runNCurses (SetWinSize size) rs = setWindowSize (getCoreWindow' rs) size.rows size.cols $> ((), rs)
+runNCurses (GetWinSize internal) rs = do
   (rows, cols) <- getMaxSize' (getCoreWindow' rs)
   let offset : Nat -> Nat = (\dim => if currentWindowHasBorder' rs && internal then (dim `minus` 2) else dim)
   pure (MkSize (offset rows) (offset cols), rs)

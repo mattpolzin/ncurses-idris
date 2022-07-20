@@ -8,6 +8,7 @@ import NCurses
 import Control.Monad.State
 import public Text.PrettyPrint.Prettyprinter.Doc
 import Control.Indexed
+import Data.List
 
 ||| Set the color of upcoming text.
 ||| See also @defaultColor@.
@@ -89,6 +90,7 @@ renderDoc = runConst . evalStateT [] . go
       (last :: attrs) <- get
         | [] => go rest
       lift . C $ disableAttr last
+      put attrs
       go rest
     go (SAnnPush attr rest) = do
       lift . C $ enableAttr attr

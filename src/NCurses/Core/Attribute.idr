@@ -81,6 +81,33 @@ data Attribute = Normal
                | Invisible
                | CP ColorPair
 
+export
+Eq Attribute where
+  Normal    == Normal    = True
+  Underline == Underline = True
+  Standout  == Standout  = True
+  Reverse   == Reverse   = True
+  Blink     == Blink     = True
+  Dim       == Dim       = True
+  Bold      == Bold      = True
+  Protected == Protected = True
+  Invisible == Invisible = True
+  (CP c1)   == (CP c2)   = c1 == c2
+  _ == _ = False
+
+export
+Show Attribute where
+  show Normal = "Normal"
+  show Underline = "Underline"
+  show Standout = "Standout"
+  show Reverse = "Reverse"
+  show Blink = "Blink"
+  show Dim = "Dim"
+  show Bold = "Bold"
+  show Protected = "Protected"
+  show Invisible = "Invisible"
+  show (CP c) = "Color (\{show c})"
+
 ||| Get the Int representation ncurses cares about for a
 ||| particular @Attribute@.
 getAttribute : HasIO io => Attribute -> io Int
