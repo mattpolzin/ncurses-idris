@@ -3,8 +3,6 @@ IDRIS := idris2
 NCURSES_VERSION ?=      # system libncurses version
 INDEXED_VERSION = 0.0.8 # indexed Idris package
 
-TARGET = libncurses-idris
-
 PACKAGE_INSTALLDIR = `${IDRIS} --libdir`
 
 ifeq (${NCURSES_VERSION},)
