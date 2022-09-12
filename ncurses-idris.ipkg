@@ -6,6 +6,7 @@ sourcedir = "src"
 
 depends = contrib >= 0.5.1 -- for PrettyPrint
         , indexed >= 0.0.8
+
 modules = Control.NCurses
         , Control.NCurses.Pretty
         , Control.NCurses.State
@@ -17,3 +18,6 @@ modules = Control.NCurses
         , NCurses.Core.SpecialKey
         , Text.PrettyPrint.Prettyprinter.Render.NCurses
 
+prebuild = "make -C support"
+postinstall = "TARGET_VERSION='0.2.0' make -C support install"
+postclean = "make -C support clean"

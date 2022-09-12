@@ -2,6 +2,7 @@
 build/
 depends/
 libncurses-idris
+libncurses-idris.dylib
 *.o
 *.d
 *.swp*
