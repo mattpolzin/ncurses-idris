@@ -32,8 +32,8 @@ MACHINE := $(shell $(CC) -dumpmachine)
  endif
 
 ifeq ($(findstring clang,$(CC_VERSION)),clang)
-  CFLAGS += ''
-  LDFLAGS += ''
+ CFLAGS += ''
+ LDFLAGS += ''
 else
  CFLAGS += -fPIC
  LDFLAGS += -fuse-ld=gold
