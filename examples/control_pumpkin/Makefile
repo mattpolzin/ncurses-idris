@@ -6,9 +6,9 @@ INSTALL_DIR=./depends/ncurses-idris-0
 CC_VERSION = $(shell $(CC) --version)
 
 ifeq ($(findstring clang,$(CC_VERSION)),clang)
- DYLIB_WORKAROUND = cp "../../libncurses-idris" "${INSTALL_DIR}/lib/libncurses-idris.dylib"
+ CFLAGS += ''
+ LDFLAGS += ''
 else
- DYLIB_WORKAROUND = cp "../../libncurses-idris" "${INSTALL_DIR}/lib/libncurses-idris.so"
  CFLAGS += -fPIC
  LDFLAGS += -fuse-ld=gold
 endif
@@ -21,7 +21,6 @@ all :
 	make && \
 	cd - && \
 	cp -R ../../build/ttc/* ./depends/ncurses-idris-0 && \
-	$(DYLIB_WORKAROUND)
 	$(IDRIS) --build control_pumpkin.ipkg
 
 clean :
