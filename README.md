@@ -1,5 +1,5 @@
 # ncurses-idris
-A simple very incomplete package for interfacing with ncurses from Idris 2 using the c `libncurses` library.
+A package for interfacing with ncurses from Idris 2 using the c `libncurses` library.
 
 ## Dependencies
 Packages:
