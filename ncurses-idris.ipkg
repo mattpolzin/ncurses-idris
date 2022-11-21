@@ -1,6 +1,10 @@
 package ncurses-idris
+authors = "Mathew Polzin"
+license = "MIT"
+brief = "NCurses support for Idris 2 apps compiled with the Chez Scheme backend."
 
 version = 0.2.0
+langversion >= 0.5.1
 
 sourcedir = "src"
 
