@@ -1,7 +1,7 @@
 IDRIS := idris2
 
 TARGET = libncurses-idris
-TARGET_VERSION ?= 0.2.0
+TARGET_VERSION ?= 0.4.0
 
 LD_OVERRIDE ?= 
 LDFLAGS = $(LD_OVERRIDE) -lncurses

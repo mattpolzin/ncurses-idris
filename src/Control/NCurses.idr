@@ -520,7 +520,7 @@ namespace Input
 --
 
 testRoutine : NCurses () Inactive Inactive
-testRoutine = Indexed.Do.do
+testRoutine = Indexed.do
   init
   insideWindow DefaultWindow
   addColor "alert" White Red
