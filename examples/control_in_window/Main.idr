@@ -12,7 +12,7 @@ loop =
        _ => (liftIO $ sleep 1) >> loop
 
 inWin1 : IsActive s => InWindow "win1" s => HasColor "inverse" s => NCurses () s s
-inWin1 = Indexed.Do.do
+inWin1 = Indexed.do
   setWindowPos (MkPosition 35 55)
   setWindowSize (MkSize 25 30)
   erase
@@ -27,7 +27,7 @@ inMainWin = do
   refresh
 
 run : NCurses () Inactive Inactive
-run = Indexed.Do.do
+run = Indexed.do
   init
   addWindow "main" (MkPosition 0 0) (MkSize 35 45) Nothing
   setWindow "main"

@@ -110,7 +110,7 @@ loop = do
     toggle _ y = y
 
     interactive : Bool -> NCurses () s s
-    interactive on = Indexed.Do.do
+    interactive on = Indexed.do
       ch <- Char.getChar
       -- turn eyes on/off when 't' is pressed
       if (toggle ch on) then eyes "red" else eyes "black"
@@ -120,7 +120,7 @@ loop = do
            _ => interactive (toggle ch on)
 
 run : NCurses () Inactive Inactive
-run = Indexed.Do.do
+run = Indexed.do
   init
   (MkSize rows cols) <- getWindowSize True
   let centerX = (cols `div` 2) `minus` (width `div` 2)

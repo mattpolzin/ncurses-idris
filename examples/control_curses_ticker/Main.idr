@@ -43,7 +43,7 @@ loop n = do
         loopOrExit n'
 
 run : NCurses () Inactive Inactive
-run = Indexed.Do.do
+run = Indexed.do
   init
   (MkSize rows cols) <- getWindowSize True
   let centerX = (cols `div` 2) `minus` ((length instructions) `div` 2)

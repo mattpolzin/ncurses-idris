@@ -3,13 +3,13 @@ authors = "Mathew Polzin"
 license = "MIT"
 brief = "NCurses support for Idris 2 apps compiled with the Chez Scheme backend."
 
-version = 0.2.0
+version = 0.4.0
 langversion >= 0.5.1
 
 sourcedir = "src"
 
 depends = contrib >= 0.5.1 -- for PrettyPrint
-        , indexed >= 0.0.8
+        , indexed >= 0.0.9
 
 modules = Control.NCurses
         , Control.NCurses.Pretty
@@ -23,5 +23,5 @@ modules = Control.NCurses
         , Text.PrettyPrint.Prettyprinter.Render.NCurses
 
 prebuild = "make -C support"
-postinstall = "TARGET_VERSION='0.2.0' make -C support install"
+postinstall = "TARGET_VERSION='0.4.0' make -C support install"
 postclean = "make -C support clean"

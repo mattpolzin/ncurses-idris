@@ -51,7 +51,7 @@ mutual
   step : IsActive s => YesKeypad s => YesDelay s => State () s s
   step = do
     rows <- get
-    lift $ Indexed.Do.do
+    lift $ Indexed.do
       erase
       printDoc (prettyDoc rows)
       refresh
@@ -70,7 +70,7 @@ mutual
          _ => step
 
 run : NCurses () Inactive Inactive
-run = Indexed.Do.do
+run = Indexed.do
   init
   setCursor CInvisible
   addWindow "options" (MkPosition 1 0) (MkSize 10 10) Nothing
