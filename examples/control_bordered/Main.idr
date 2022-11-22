@@ -12,7 +12,7 @@ loop =
        _ => (liftIO $ sleep 1) >> loop
 
 run : NCurses () Inactive Inactive
-run = Indexed.Do.do
+run = Indexed.do
   init
   clear
   addColor "green" Green Black

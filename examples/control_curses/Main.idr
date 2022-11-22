@@ -26,7 +26,7 @@ prettyDoc =
        ]
 
 run : NCurses () Inactive Inactive
-run = Indexed.Do.do
+run = Indexed.do
   init
   addWindow "main" (MkPosition 0 0) (MkSize 35 45) Nothing
   setWindow "main"
