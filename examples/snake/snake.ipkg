@@ -1,0 +1,8 @@
+package snake
+
+depends = contrib
+        , indexed >= 0.0.7
+        , ncurses-idris
+
+executable = "snake"
+main = Main
