@@ -20,7 +20,10 @@ all :
 	cd ../.. && \
 	make && \
 	cd - && \
+	cp -R ../../depends/* ./depends/ && \
 	cp -R ../../build/ttc/* ./depends/ncurses-idris-0 && \
+	(cp ../../support/*.dylib ./depends/ncurses-idris-0/lib/ || \
+	cp ../../support/*.so ./depends/ncurses-idris-0/lib/) && \
 	$(IDRIS) --build timed.ipkg
 
 .PHONY : clean
