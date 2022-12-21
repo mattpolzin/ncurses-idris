@@ -1,5 +1,5 @@
 name: ncurses-idris tests
-on: 
+on:
   push:
     branches:
       - main
@@ -63,6 +63,11 @@ jobs:
           cd examples/key_logger
           make
           cd -
+      - name: Build snake example
+        run: |
+          cd examples/snake
+          make
+          cd -
       - name: Build timed example
         run: |
           cd examples/timed
@@ -88,4 +93,3 @@ jobs:
             exit 1
           fi
           cd -
-
