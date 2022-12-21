@@ -8,7 +8,8 @@ PACKAGE_INSTALLDIR = `${IDRIS} --libdir`
 ifeq (${NCURSES_VERSION},)
 	NCURSES_WORKAROUND = echo 'Using versionless NCurses lib.'
 else
-	NCURSES_WORKAROUND = cat Core.idr | sed 's/libncurses"/libncurses $(NCURSES_VERSION)"/' > tmp.idr && \
+	NCURSES_WORKAROUND = echo "Using NCurses lib version ${NCURSES_VERSION}." && \
+			     cat Core.idr | sed 's/libncurses,ncurses.h"/libncurses $(NCURSES_VERSION),ncurses.h"/' > tmp.idr && \
 	                     rm Core.idr && mv tmp.idr Core.idr
 endif
 
