@@ -296,6 +296,7 @@ record TetrisState where
   element : Element
   board : Board
   score : Nat
+  lines : Nat
 
 initTetrisState : IO TetrisState
 initTetrisState
@@ -303,7 +304,7 @@ initTetrisState
   $ MkTetrisState
     !newElement
     initBoard
-    0
+    0 0
 
 State : Type -> CursesState -> CursesState -> Type
 State = IndexedStateT TetrisState CursesState CursesState NCurses
@@ -461,10 +462,10 @@ parameters
       $ do recordElement curr
            modify { score $= (10+) }
            bd <- gets board
-           let Just (n, bd) = bingos bd
+           let Just (l, bd) = bingos bd
              | Nothing => pure ()
-           let n = ifThenElse (n == 4) 5 n -- bonus for 4 lines
-           modify { board := bd, score $= ((100*n)+) }
+           let n = (l * S l) `div` 2 -- bonus for multilines
+           modify { board := bd, score $= ((100*n)+), lines $= (l+) }
            lift clear
            drawBoard bd
 
@@ -485,13 +486,18 @@ parameters
        drawScore : State () s s
        drawScore = Indexed.do
          scr <- gets score
+         lns <- gets lines
          lift $ inWindow "score" $ Indexed.do
            setAttrs @{setWindowIsActiveStill} [Color (Named @{setWindowHasColorStill} "meta")]
            move (MkPosition 0 0)
-           let str = show scr
-           let pref = " score: "
-           let pad = String.replicate (18 `minus` (length str + length pref)) ' '
-           putStrLn "\{pref}\{pad}\{str}"
+           let str1 = show scr
+           let str2 = show lns
+           let pref1 = " score: "
+           let pref2 = " lines: "
+           let pad1 = String.replicate (17 `minus` (length str1 + length pref1)) ' '
+           let pad2 = String.replicate (17 `minus` (length str2 + length pref2)) ' '
+           putStrLn "\{pref1}\{pad1}\{str1} "
+           putStrLn "\{pref2}\{pad2}\{str2} "
            refresh
 
        recordElement : Element -> State () s s
@@ -543,7 +549,7 @@ run = Indexed.do
   addColor "meta"   White Black
 
   addWindow "tetris" (MkPosition 1 1) (MkSize (2 + 2 * gameWidth) (2 + gameHeight)) (defaultBorder "meta")
-  addWindow "score"  (MkPosition 1 (4 + 2 * gameWidth)) (MkSize 3 20) (defaultBorder "meta")
+  addWindow "score"  (MkPosition 1 (4 + 2 * gameWidth)) (MkSize 4 20) (defaultBorder "meta")
 
   setWindow "tetris"
   setNoDelay True
