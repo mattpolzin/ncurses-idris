@@ -2,7 +2,6 @@
 
 -- TODO:
 -- * `Drop` action
--- * `Game over` detection
 
 module Main
 
@@ -72,6 +71,15 @@ gameHeight = 20
 gameWidth : Nat
 gameWidth = 10
 
+||| Board buffer zone: pieces don't appear fully formed in the play area,
+||| they are slowly lowered from above.
+||| This size is the largest height of all sprites.
+gameBuffer : Nat
+gameBuffer = 4
+
+boardHeight : Nat
+boardHeight = gameHeight + gameBuffer
+
 ||| Colours of the pieces
 data Colour
   = Red | Blue | Green | Orange | White -- actual colours of interest
@@ -79,10 +87,10 @@ data Colour
 
 ||| Game board
 Board : Type
-Board = Matrix gameHeight gameWidth (Maybe Colour)
+Board = Matrix boardHeight gameWidth (Maybe Colour)
 
 initBoard : Board
-initBoard = replicate gameHeight (replicate gameWidth Nothing)
+initBoard = replicate _ (replicate _ Nothing)
 
 ||| A sprite is a matrix of boolean values describing whether each pixel
 ||| is filled in.
@@ -90,6 +98,9 @@ initBoard = replicate gameHeight (replicate gameWidth Nothing)
 ||| as small as possible)
 Sprite : Nat -> Nat -> Type
 Sprite m n = Matrix m n Bool
+
+rows : {h : Nat} -> Sprite h w -> Nat
+rows {h} _ = h
 
 ||| An `L`-shaped piece
 anL : Sprite 3 2
@@ -100,17 +111,19 @@ anL = [ [True, False]
 
 ||| A `J`-shaped piece (aka mirrored L)
 aJ : Sprite 3 2
-aJ = [ [False, True]
-     , [False, True]
-     , [True, True]
-     ]
+aJ = map reverse anL
 
-||| An (reversed) 'S'-shaped piece
+||| An 'S'-shaped piece
 anS : Sprite 3 2
 anS = [ [True, False]
       , [True, True]
       , [False, True]
       ]
+
+||| An (reversed) 'S'-shaped piece
+a4 : Sprite 3 2
+a4 = map reverse anS
+
 
 ||| A 't'-shaped piece
 aT : Sprite 3 2
@@ -177,7 +190,7 @@ shapes c n =
 inBounds : Element -> Bool
 inBounds (MkElement _ {width, height} _ topLeft)
   = (col topLeft + width <= gameWidth)
-  && (row topLeft + height <= gameHeight)
+  && (row topLeft + height <= boardHeight)
 
 ||| Rotate an element (the width & height are implicit swapped here)
 rotate : Element -> Element
@@ -189,13 +202,14 @@ newElement = do
   col <- newColour
   let pos = MkPosition 0 4
   let mk : {h, w : Nat} -> Sprite h w -> Element
-      := \ spr => MkElement col spr pos
-  let elt = case !(randomRIO {a = Int32} (1, 6)) of
+      := \ spr => MkElement col spr ({ row := gameBuffer `minus` rows spr } pos)
+  let elt = case !(randomRIO {a = Int32} (1, 7)) of
               1 => mk anL
               2 => mk aJ
               3 => mk anS
-              4 => mk aT
-              5 => mk anI
+              4 => mk a4
+              5 => mk aT
+              6 => mk anI
               _ => mk anO
   let rot : Nat = cast !(randomRIO {a = Int32} (0,3))
   pure (compose rot rotate elt)
@@ -339,16 +353,17 @@ parameters
   drawElement : Element -> State () s s
   drawElement (MkElement colour sprite topLeft)
     = forMatrix_ sprite $ \ k, l, b =>
-        when b $
+        let row = row topLeft + cast k in
+        when (b && row >= gameBuffer) $
           let (color ** prf) = toColor colour in
           lift $ pixel color $
              { col $= (cast l +)
-             , row $= (cast k +)
+             , row := row `minus` gameBuffer
              } topLeft
 
   drawBoard : Board -> State () s s
   drawBoard board
-    = forMatrix_ board $ \ k, l, mc => case mc of
+    = forMatrix_ (drop 4 board) $ \ k, l, mc => case mc of
         Nothing => pure ()
         Just colour =>
           let (color ** prf) = toColor colour in
@@ -458,6 +473,9 @@ parameters
     drawScore
     lift refresh
 
+    -- detect gameOver: any cell in the buffer zone is occupied
+    let False = any (any isJust) $ take gameBuffer !(gets board)
+      | True => gameOver
     -- wait until the next action frame
     lift $ liftIO $ usleep (pauseTime `div` cast actionFrames)
     loop n
