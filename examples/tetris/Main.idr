@@ -102,6 +102,9 @@ Sprite m n = Matrix m n Bool
 rows : {h : Nat} -> Sprite h w -> Nat
 rows {h} _ = h
 
+cols : {w : Nat} -> Sprite h w -> Nat
+cols {w} _ = w
+
 ||| An `L`-shaped piece
 anL : Sprite 3 2
 anL = [ [True, False]
@@ -200,9 +203,8 @@ rotate = { sprite $= map reverse . transpose }
 newElement : IO Element
 newElement = do
   col <- newColour
-  let pos = MkPosition 0 4
   let mk : {h, w : Nat} -> Sprite h w -> Element
-      := \ spr => MkElement col spr ({ row := gameBuffer `minus` rows spr } pos)
+      := \ spr => MkElement col spr (MkPosition 0 0)
   let elt = case !(randomRIO {a = Int32} (1, 7)) of
               1 => mk anL
               2 => mk aJ
@@ -212,7 +214,15 @@ newElement = do
               6 => mk anI
               _ => mk anO
   let rot : Nat = cast !(randomRIO {a = Int32} (0,3))
-  pure (compose rot rotate elt)
+  let elt := compose rot rotate elt
+  -- we move the starting position based on the final shape
+  -- of the element so that it starts just above the game area
+  -- and centered
+  let spr := sprite elt
+  let pos := MkPosition
+               (gameBuffer `minus` rows spr)
+               (5 `minus` (S (cols spr) `div` 2))
+  pure ({ topLeft := pos } elt)
 
 ||| Possible user inputs
 data Operation = MoveLeft | MoveRight | Rotate
@@ -297,6 +307,7 @@ record TetrisState where
   board : Board
   score : Nat
   lines : Nat
+  queued : Element
 
 initTetrisState : IO TetrisState
 initTetrisState
@@ -305,6 +316,7 @@ initTetrisState
     !newElement
     initBoard
     0 0
+    !newElement
 
 State : Type -> CursesState -> CursesState -> Type
 State = IndexedStateT TetrisState CursesState CursesState NCurses
@@ -351,31 +363,55 @@ parameters
   toColor White = ("white" ** %search)
   toColor Black = ("black" ** %search)
 
-  drawElement : Element -> State () s s
+  drawElement : Element -> NCurses () s s
   drawElement (MkElement colour sprite topLeft)
     = forMatrix_ sprite $ \ k, l, b =>
         let row = row topLeft + cast k in
         when (b && row >= gameBuffer) $
           let (color ** prf) = toColor colour in
-          lift $ pixel color $
+          pixel color $
              { col $= (cast l +)
              , row := row `minus` gameBuffer
              } topLeft
 
-  drawBoard : Board -> State () s s
+  drawBoard : Board -> NCurses () s s
   drawBoard board
     = forMatrix_ (drop 4 board) $ \ k, l, mc => case mc of
         Nothing => pure ()
         Just colour =>
           let (color ** prf) = toColor colour in
-          lift $ pixel color (MkPosition (cast k) (cast l))
+          pixel color (MkPosition (cast k) (cast l))
+
+parameters
+  {auto act : IsActive s}
+  {auto scr : HasWindow "meta" s}
+  {auto org : HasColor "orange" s}
+  {auto red : HasColor "red" s}
+  {auto grn : HasColor "green" s}
+  {auto blu : HasColor "blue" s}
+  {auto wht : HasColor "white" s}
+  {auto blk : HasColor "black" s}
+
+  -- the meta window has a 'next piece' entry
+  drawNextElement : Element -> NCurses () s s
+  drawNextElement elt = inWindow "meta" $ Indexed.do
+    let center = 4 `minus` (width elt `div` 2)
+    drawElement -- ugh
+        @{setWindowIsActiveStill}
+        @{setWindowHasColorStill}
+        @{setWindowHasColorStill}
+        @{setWindowHasColorStill}
+        @{setWindowHasColorStill}
+        @{setWindowHasColorStill}
+        @{setWindowHasColorStill}
+        ({ topLeft := MkPosition (gameBuffer + 5) center } elt)
 
 ---------------------------------------------------------------------------
 -- Game loop
 
 parameters
   {auto ttr : HasWindow "tetris" s}
-  {auto scr : HasWindow "score" s}
+  {auto scr : HasWindow "meta" s}
   {auto act : IsActive s}
   {auto kpd : YesKeypad s}
   {auto dly : NoDelay s}
@@ -394,7 +430,10 @@ parameters
   start = Indexed.do
     put !(lift $ liftIO initTetrisState)
     lift clear
-    drawBoard initBoard
+    lift $ inWindow "meta" clear
+    lift $ drawBoard initBoard
+    lift $ drawNextElement !(gets queued)
+    lift refresh
     loop actionFrames
 
   gameOver : State () s s
@@ -433,13 +472,14 @@ parameters
   test : State () s s
   test = Indexed.do
     for_ (with Prelude.(::) [(Z,Red), (1, Orange), (2, Green), (3, Blue)]) $ \ (n, col) =>
-      for_ (shapes col n) $ drawElement . compose n rotate
+      for_ (shapes col n) $ lift . drawElement . compose n rotate
     lift refresh
     gameOver
 
   step n = Indexed.do
     -- get the element
     curr <- gets element
+    queued <- gets queued
 
     -- see whether any actions apply
     next <- map (fromMaybe curr) $ applyAction curr
@@ -451,43 +491,58 @@ parameters
     -- Before committing to this new position,
     -- we check that it is compatible with the board
     b <- isCompatible next
-    next <- ifThenElse b (pure next) (lift $ liftIO newElement)
-    modify ({ element := next })
+    (next, queued) <-
+      ifThenElse b
+        (pure (next, queued))
+        (lift $ Indexed.do
+           newqueued <- liftIO newElement
+           -- paint out the old 'next element', paint in the new one
+           drawNextElement ({ colour := Black } queued)
+           drawNextElement newqueued
+           pure (queued, newqueued))
+    modify ({ element := next, queued := queued })
 
     -- if the new element is compatible we paint out the old element,
     -- otherwise we record it as settled in the game board and look for
     -- completed lines
-    ifThenElse b
-      (drawElement ({ colour := Black } curr))
-      $ do recordElement curr
-           modify { score $= (10+) }
-           bd <- gets board
-           let Just (l, bd) = bingos bd
-             | Nothing => pure ()
-           let n = (l * S l) `div` 2 -- bonus for multilines
-           modify { board := bd, score $= ((100*n)+), lines $= (l+) }
-           lift clear
-           drawBoard bd
+    True <- ifThenElse b
+              (do lift $ drawElement ({ colour := Black } curr)
+                  pure True)
+              (do recordElement curr
+                  bd <- gets board
+                  -- detect gameOver: any cell in the buffer zone is occupied
+                  let False = any (any isJust) $ take gameBuffer bd
+                    | True => pure False
+                  modify { score $= (10+) }
+                  -- detect whether we have full lines
+                  let Just (l, bd) = bingos bd
+                    | Nothing => pure True
+                  let n = (l * S l) `div` 2 -- bonus for multilines
+                  modify { board := bd, score $= ((100*n)+), lines $= (l+) }
+                  -- we've removed some lines so we redraw the whole board
+                  lift clear
+                  lift $ drawBoard bd
+                  pure True)
+      | False => gameOver
 
     -- and then we paint in the new one
-    drawElement next
+    lift $ drawElement next
     drawScore
     lift refresh
 
-    -- detect gameOver: any cell in the buffer zone is occupied
-    let False = any (any isJust) $ take gameBuffer !(gets board)
-      | True => gameOver
     -- wait until the next action frame
     lift $ liftIO $ usleep (pauseTime `div` cast actionFrames)
     loop n
 
      where
 
+
        drawScore : State () s s
        drawScore = Indexed.do
          scr <- gets score
          lns <- gets lines
-         lift $ inWindow "score" $ Indexed.do
+         qud <- gets queued
+         lift $ inWindow "meta" $ Indexed.do
            setAttrs @{setWindowIsActiveStill} [Color (Named @{setWindowHasColorStill} "meta")]
            move (MkPosition 0 0)
            let str1 = show scr
@@ -498,6 +553,8 @@ parameters
            let pad2 = String.replicate (17 `minus` (length str2 + length pref2)) ' '
            putStrLn "\{pref1}\{pad1}\{str1} "
            putStrLn "\{pref2}\{pad2}\{str2} "
+           move (MkPosition 3 1)
+           putStrLn "next piece:"
            refresh
 
        recordElement : Element -> State () s s
@@ -549,7 +606,7 @@ run = Indexed.do
   addColor "meta"   White Black
 
   addWindow "tetris" (MkPosition 1 1) (MkSize (2 + 2 * gameWidth) (2 + gameHeight)) (defaultBorder "meta")
-  addWindow "score"  (MkPosition 1 (4 + 2 * gameWidth)) (MkSize 4 20) (defaultBorder "meta")
+  addWindow "meta"   (MkPosition 1 (4 + 2 * gameWidth)) (MkSize 13 20) (defaultBorder "meta")
 
   setWindow "tetris"
   setNoDelay True
