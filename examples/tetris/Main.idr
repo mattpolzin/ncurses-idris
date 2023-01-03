@@ -226,17 +226,19 @@ newElement = do
 
 ||| Possible user inputs
 data Operation = MoveLeft | MoveRight | Rotate
-data Action = Quit | Transform Operation
+data Action = Quit | Drop | Transform Operation
 
 ||| Non-blocking reading of user inputs
 getAction :
   IsActive s => YesKeypad s => NoDelay s =>
   NCurses (Maybe Action) s s
 getAction = getKeyOrChar >>= \ input => pure $ case input of
+  Just (Left ' ') => Just Drop
   Just (Left 'q') => Just Quit
   Just (Left 'r') => Just (Transform Rotate)
   Just (Right Left) => Just (Transform MoveLeft)
   Just (Right Right) => Just (Transform MoveRight)
+  Just (Right Down) => Just Drop
   _ => Nothing
 
 ||| Perform the described transformation
@@ -338,9 +340,12 @@ actionFrames = 5
 
 ||| Decide whether we have just hit a crucial frame,
 ||| and return the remaining number of action frames before we reach the next one
-isCrucialFrame : Nat -> (Bool, Nat)
-isCrucialFrame Z = (True, actionFrames)
-isCrucialFrame (S n) = (False, n)
+||| Nothing indicates the user has called the `Drop` command and so all
+||| frames are crucial until the element finds its place
+isCrucialFrame : Maybe Nat -> (Bool, Maybe Nat)
+isCrucialFrame Nothing = (True, Nothing)
+isCrucialFrame (Just Z) = (True, Just actionFrames)
+isCrucialFrame (Just (S n)) = (False, Just n)
 
 
 ---------------------------------------------------------------------------
@@ -423,8 +428,8 @@ parameters
   {auto blu : HasColor "blue" s}
   {auto wht : HasColor "white" s}
 
-  step : Nat -> State () s s
-  loop : Nat -> State () s s
+  step : Maybe Nat -> State () s s
+  loop : Maybe Nat -> State () s s
 
   start : State () s s
   start = Indexed.do
@@ -434,7 +439,7 @@ parameters
     lift $ drawBoard initBoard
     lift $ drawNextElement !(gets queued)
     lift refresh
-    loop actionFrames
+    loop (Just actionFrames)
 
   gameOver : State () s s
   gameOver = do
@@ -482,8 +487,9 @@ parameters
     queued <- gets queued
 
     -- see whether any actions apply
-    next <- map (fromMaybe curr) $ applyAction curr
+    (dropping, next) <- map (fromMaybe curr <$>) $ applyAction curr
 
+    let n = guard dropping *> n
     -- additionally if we're on a crucial frame, we step the element down
     let (b, n) = isCrucialFrame n
     next <- lift $ ifThenElse b stepElementDown pure next
@@ -531,8 +537,9 @@ parameters
     lift refresh
 
     -- wait until the next action frame
-    lift $ liftIO $ usleep (pauseTime `div` cast actionFrames)
-    loop n
+    when (isJust n) $
+      lift $ liftIO $ usleep (pauseTime `div` cast actionFrames)
+    loop (ifThenElse b n (n <|> Just actionFrames))
 
      where
 
@@ -580,15 +587,16 @@ parameters
          --   let next = { topLeft->row := S currRow } next
          --   pure next
 
-       applyAction : Element -> State (Maybe Element) s s
+       applyAction : Element -> State (Bool, Maybe Element) s s
        applyAction curr = do
          Just (Transform ope) <- lift getAction
-           | Just Quit => lift (liftIO (Nothing <$ raiseSignal SigINT))
-           | Nothing => pure (Just curr)
+           | Just Quit => lift (liftIO ((True, Nothing) <$ raiseSignal SigINT))
+           | Just Drop => pure (False, Nothing)
+           | Nothing => pure (True, Just curr)
          let Just next = transform ope curr
-           | Nothing => pure Nothing
+           | Nothing => pure (True, Nothing)
          b <- isCompatible next
-         pure $ next <$ guard b
+         pure $ (True, next <$ guard b)
 
 
 run : NCurses () Inactive Inactive
