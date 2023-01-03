@@ -68,6 +68,11 @@ jobs:
           cd examples/snake
           make
           cd -
+      - name: Build tetris example
+        run: |
+          cd examples/tetris
+          make
+          cd -
       - name: Build timed example
         run: |
           cd examples/timed
