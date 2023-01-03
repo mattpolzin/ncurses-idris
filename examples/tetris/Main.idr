@@ -1,7 +1,7 @@
 ||| Tetris
 
 -- TODO:
--- * `Drop` action
+--
 
 module Main
 
@@ -538,7 +538,7 @@ parameters
 
     -- wait until the next action frame
     when (isJust n) $
-      lift $ liftIO $ usleep (pauseTime `div` cast actionFrames)
+      lift $ liftIO $ usleep @{%search} ((pauseTime - (2500 * cast !(gets lines))) `div` cast actionFrames) @{believe_me Oh}
     loop (ifThenElse b n (n <|> Just actionFrames))
 
      where
