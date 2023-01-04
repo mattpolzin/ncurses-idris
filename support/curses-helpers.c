@@ -162,10 +162,10 @@ int printWindow(WINDOW* win, const char* fmt, const char* arg) {
   return wprintw(win, fmt, arg);
 }
 
-int mvPrint(int x, int y, const char* fmt, char* arg) {
-  return mvprintw(x, y, fmt, arg);
+int mvPrint(int y, int x, const char* fmt, char* arg) {
+  return mvprintw(y, x, fmt, arg);
 }
 
-int mvPrintWindow(WINDOW* win, int x, int y, const char* fmt, char* arg) {
-  return mvwprintw(win, x, y, fmt, arg); 
+int mvPrintWindow(WINDOW* win, int y, int x, const char* fmt, char* arg) {
+  return mvwprintw(win, y, x, fmt, arg); 
 }
