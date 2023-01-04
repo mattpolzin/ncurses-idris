@@ -154,3 +154,18 @@ int keyBackspace() {
   return KEY_BACKSPACE;
 }
 
+int print(const char* fmt, const char* arg) {
+  return printw(fmt, arg);
+}
+
+int printWindow(WINDOW* win, const char* fmt, const char* arg) {
+  return wprintw(win, fmt, arg);
+}
+
+int mvPrint(int x, int y, const char* fmt, char* arg) {
+  return mvprintw(x, y, fmt, arg);
+}
+
+int mvPrintWindow(WINDOW* win, int x, int y, const char* fmt, char* arg) {
+  return mvwprintw(win, x, y, fmt, arg); 
+}
