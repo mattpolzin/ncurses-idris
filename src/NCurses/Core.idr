@@ -63,10 +63,10 @@ prim__erase : PrimIO ()
 %foreign libncurses "werase"
 prim__eraseWindow : AnyPtr -> PrimIO ()
 
-%foreign libncurses "printw"
+%foreign libhelper "print"
 prim__print : String -> String -> PrimIO ()
 
-%foreign libncurses "wprintw"
+%foreign libhelper "printWindow"
 prim__printWindow : AnyPtr -> String -> String -> PrimIO ()
 
 %foreign libncurses "addch"
@@ -83,10 +83,10 @@ prim__addCharWindow : AnyPtr -> Char -> PrimIO ()
 |||
 ||| The second to last argument is a format string but
 ||| its best to just always pass strings ("%s").
-%foreign libncurses "mvprintw"
+%foreign libhelper "mvPrint"
 prim__mvPrint : Int -> Int -> String -> String -> PrimIO ()
 
-%foreign libncurses "mvwprintw"
+%foreign libhelper "mvPrintWindow"
 prim__mvPrintWindow : AnyPtr -> Int -> Int -> String -> String -> PrimIO ()
 
 %foreign libncurses "vline"
