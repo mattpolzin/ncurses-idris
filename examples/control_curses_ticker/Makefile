@@ -13,9 +13,11 @@ else
  LDFLAGS += -fuse-ld=gold
 endif
 
-.PHONY : all
+.PHONY : deps app all
 
-all :
+all : deps app
+
+deps:
 	mkdir -p depends/ncurses-idris-0/lib
 	cd ../.. && \
 	make && \
@@ -23,8 +25,12 @@ all :
 	cp -R ../../depends/* ./depends/ && \
 	cp -R ../../build/ttc/* ./depends/ncurses-idris-0 && \
 	(cp ../../support/*.dylib ./depends/ncurses-idris-0/lib/ || \
-	cp ../../support/*.so ./depends/ncurses-idris-0/lib/) && \
+	cp ../../support/*.so ./depends/ncurses-idris-0/lib/)
+
+./build/exe/control_curses_ticker:
 	$(IDRIS) --build control_curses_ticker.ipkg
+
+app: ./build/exe/control_curses_ticker
 
 clean :
 	rm -rf ./build
