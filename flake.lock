@@ -1,0 +1,111 @@
+{
+  "nodes": {
+    "flake-utils": {
+      "locked": {
+        "lastModified": 1667395993,
+        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "idris-emacs-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1666078909,
+        "narHash": "sha256-oYNHFIpcrFfPb4sXJwEBFKeH+PB4AGCrAFrfBrSTCeo=",
+        "owner": "redfish64",
+        "repo": "idris2-mode",
+        "rev": "3bcb52a65c488f31c99d20f235f6050418a84c9d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "redfish64",
+        "repo": "idris2-mode",
+        "type": "github"
+      }
+    },
+    "idris-indexed": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "idris2": [
+          "idris2"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1673817707,
+        "narHash": "sha256-rYhas7WSIkif1kdYIDSU6JEbpPxZGQF29QQnvEN758o=",
+        "owner": "mattpolzin",
+        "repo": "idris-indexed",
+        "rev": "04acdb3834a347ff92fbac3d3a46ca9bfe27882f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mattpolzin",
+        "ref": "nix-experiment",
+        "repo": "idris-indexed",
+        "type": "github"
+      }
+    },
+    "idris2": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "idris-emacs-src": "idris-emacs-src",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1673705952,
+        "narHash": "sha256-dZOIFbgmyoi2oIamH8SFC9T9WBnB9nU+MLemR3oUs4A=",
+        "owner": "idris-lang",
+        "repo": "idris2",
+        "rev": "60a3b80c19e2b29085c0f1faccdb4a1784ac6661",
+        "type": "github"
+      },
+      "original": {
+        "owner": "idris-lang",
+        "ref": "main",
+        "repo": "idris2",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1673606088,
+        "narHash": "sha256-wdYD41UwNwPhTdMaG0AIe7fE1bAdyHe6bB4HLUqUvck=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "37b97ae3dd714de9a17923d004a2c5b5543dfa6d",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "root": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "idris-indexed": "idris-indexed",
+        "idris2": "idris2",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
