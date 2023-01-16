@@ -4,14 +4,12 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     idris2 = {
-      url = "github:idris-lang/idris2/main";
+      url = "github:idris-lang/Idris2/main";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
     idris-indexed = {
       url = "github:mattpolzin/idris-indexed/nix-experiment";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
       inputs.idris2.follows = "idris2";
     };
   };
@@ -21,6 +19,7 @@
       let pkgs = nixpkgs.legacyPackages.${system};
           stdenv = pkgs.stdenv;
           ncurses = pkgs.ncurses;
+          lists = pkgs.lib.lists;
           idris2' = idris2.defaultPackage.${system};
           idris-indexed' = idris-indexed.packages.${system}.default;
       in {
@@ -28,25 +27,24 @@
         name = "ncurses-idris";
         version = "0.4.0";
         src = ./.;
+        idrisPackages = [ idris-indexed' ] ++ idris-indexed'.idrisPackages;
         propagatedBuildInputs = [
           ncurses
-
-          idris-indexed'
         ];
         buildInputs = [
           idris2'
-        ];
+        ] ++ idrisPackages;
 
-        IDRIS2="${idris2'}/bin/idris2";
-        INDEXED_INSTALL_LOCATION="${idris-indexed'}/idris2-0.6.0";
+        IDRIS2 = "${idris2'}/bin/idris2";
+        IDRIS2_PREFIX = "${placeholder "out"}";
+        INDEXED_INSTALL_LOCATION = "${idris-indexed'}/idris2-0.6.0";
+        IDRIS2_PACKAGE_PATH = builtins.concatStringsSep ":" (builtins.map (p: "${p}/idris2-${idris2'.version}") idrisPackages);
 
         buildPhase = ''
-          export IDRIS2_PACKAGE_PATH="$IDRIS2_PACKAGE_PATH:${INDEXED_INSTALL_LOCATION}";
           make clean
           make all
         '';
         installPhase = ''
-          export IDRIS2_PREFIX="$out"
           make install
         '';
       };

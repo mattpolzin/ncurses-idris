@@ -15,6 +15,36 @@
         "type": "github"
       }
     },
+    "flake-utils_2": {
+      "locked": {
+        "lastModified": 1667395993,
+        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "flake-utils_3": {
+      "locked": {
+        "lastModified": 1667395993,
+        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "idris-emacs-src": {
       "flake": false,
       "locked": {
@@ -33,9 +63,7 @@
     },
     "idris-indexed": {
       "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
+        "flake-utils": "flake-utils_2",
         "idris2": [
           "idris2"
         ],
@@ -44,11 +72,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1673817707,
-        "narHash": "sha256-rYhas7WSIkif1kdYIDSU6JEbpPxZGQF29QQnvEN758o=",
+        "lastModified": 1673902825,
+        "narHash": "sha256-iK68WZ/KvGMsP3fvuguTxF5n2xnGXhybFT2esMDkwcI=",
         "owner": "mattpolzin",
         "repo": "idris-indexed",
-        "rev": "04acdb3834a347ff92fbac3d3a46ca9bfe27882f",
+        "rev": "14f847d2673a63c734244c02505ddb39db69b61e",
         "type": "github"
       },
       "original": {
@@ -60,26 +88,24 @@
     },
     "idris2": {
       "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
+        "flake-utils": "flake-utils_3",
         "idris-emacs-src": "idris-emacs-src",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1673705952,
-        "narHash": "sha256-dZOIFbgmyoi2oIamH8SFC9T9WBnB9nU+MLemR3oUs4A=",
+        "lastModified": 1673849241,
+        "narHash": "sha256-aVn5lZpn16778AZxa1iz4T2Wepcq+bwRDOfNiNK/3R8=",
         "owner": "idris-lang",
-        "repo": "idris2",
-        "rev": "60a3b80c19e2b29085c0f1faccdb4a1784ac6661",
+        "repo": "Idris2",
+        "rev": "24ac56de8809ae7a2cd0126f01110d4b762389fc",
         "type": "github"
       },
       "original": {
         "owner": "idris-lang",
         "ref": "main",
-        "repo": "idris2",
+        "repo": "Idris2",
         "type": "github"
       }
     },
