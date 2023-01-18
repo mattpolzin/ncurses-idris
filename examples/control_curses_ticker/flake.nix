@@ -21,8 +21,8 @@
         idris2' = idris2.defaultPackage.${system};
         ncurses-idris' = ncurses-idris.packages.${system}.default;
         inherit (builtins) concatStringsSep;
-    in {
-      packages.default = stdenv.mkDerivation rec {
+    in rec {
+      packages.control-curses-ticker = stdenv.mkDerivation rec {
         name = "control-curses-ticker";
         version = "0.0.1";
         src = ./.;
@@ -47,6 +47,9 @@
           install ./build/exec/control_curses_ticker $out/bin/
         '';
       };
+      packages.default = packages.control-curses-ticker;
+      apps.control-curses-ticker = flake-utils.lib.mkApp { drv = packages.control-curses-ticker; };
+      apps.default = apps.control-curses-ticker;
     }
   );
 }
