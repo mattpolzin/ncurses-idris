@@ -1,0 +1,25 @@
+
+name : Check Nix Flake
+
+on:
+  pull_request:
+
+jobs:
+  check-flake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v18
+      - name: Update example flake file
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          cd examples/control_curses_ticker
+          sed -i "s/ncurses-idris\/main/ncurses-idris\/${BRANCH_NAME}/" flake.nix
+          nix flake lock
+          cd -
+      - name: Build flake
+        run: nix build
+      - name: Check flake
+        run: nix flake check

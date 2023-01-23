@@ -8,7 +8,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     ncurses-idris = {
-      url = "github:mattpolzin/ncurses-idris/nix-experiment";
+      url = "github:mattpolzin/ncurses-idris/main";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.idris2.follows = "idris2";
     };
