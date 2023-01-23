@@ -12,7 +12,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     idris-indexed = {
-      url = "github:mattpolzin/idris-indexed/nix-experiment";
+      url = "github:mattpolzin/idris-indexed/main";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.idris2.follows = "idris2";
     };

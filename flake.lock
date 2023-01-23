@@ -88,16 +88,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1673902825,
+        "lastModified": 1674486341,
         "narHash": "sha256-iK68WZ/KvGMsP3fvuguTxF5n2xnGXhybFT2esMDkwcI=",
         "owner": "mattpolzin",
         "repo": "idris-indexed",
-        "rev": "14f847d2673a63c734244c02505ddb39db69b61e",
+        "rev": "6a10e418ef2dcdef66f8de7ee9e29edd1aa7c179",
         "type": "github"
       },
       "original": {
         "owner": "mattpolzin",
-        "ref": "nix-experiment",
+        "ref": "main",
         "repo": "idris-indexed",
         "type": "github"
       }
