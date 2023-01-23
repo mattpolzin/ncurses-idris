@@ -3,6 +3,10 @@
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
     idris2 = {
       url = "github:idris-lang/Idris2/main";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -14,7 +18,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, idris2, idris-indexed }:
+  outputs = { self, nixpkgs, flake-utils, flake-compat, idris2, idris-indexed }:
     flake-utils.lib.eachDefaultSystem (system: 
       let pkgs = nixpkgs.legacyPackages.${system};
           stdenv = pkgs.stdenv;
@@ -22,7 +26,7 @@
           lists = pkgs.lib.lists;
           idris2' = idris2.defaultPackage.${system};
           idris-indexed' = idris-indexed.packages.${system}.default;
-      in {
+      in rec {
       packages.default = stdenv.mkDerivation rec {
         name = "ncurses-idris";
         version = "0.4.0";
@@ -48,6 +52,8 @@
           make install
         '';
       };
+      checks.control_curses_ticker_example = 
+        (import flake-compat { src = ./examples/control_curses_ticker; inherit system; }).defaultNix.default;
     }
   );
 }
