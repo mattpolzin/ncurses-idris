@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "flake-compat": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1673956053,
+        "narHash": "sha256-4gtG9iQuiKITOjNQQeQIpoIB6b16fm+504Ch3sNKLd8=",
+        "owner": "edolstra",
+        "repo": "flake-compat",
+        "rev": "35bb57c0c8d8b62bbfd284272c928ceb64ddbde9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "edolstra",
+        "repo": "flake-compat",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "locked": {
         "lastModified": 1667395993,
@@ -89,16 +105,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1673902825,
+        "lastModified": 1674486341,
         "narHash": "sha256-iK68WZ/KvGMsP3fvuguTxF5n2xnGXhybFT2esMDkwcI=",
         "owner": "mattpolzin",
         "repo": "idris-indexed",
-        "rev": "14f847d2673a63c734244c02505ddb39db69b61e",
+        "rev": "6a10e418ef2dcdef66f8de7ee9e29edd1aa7c179",
         "type": "github"
       },
       "original": {
         "owner": "mattpolzin",
-        "ref": "nix-experiment",
+        "ref": "main",
         "repo": "idris-indexed",
         "type": "github"
       }
@@ -112,11 +128,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1673849241,
-        "narHash": "sha256-aVn5lZpn16778AZxa1iz4T2Wepcq+bwRDOfNiNK/3R8=",
+        "lastModified": 1674416157,
+        "narHash": "sha256-HR/8Qo5HR58X7UslgM4tfGL4E5BBWgf0fAS16fOxKa8=",
         "owner": "idris-lang",
         "repo": "idris2",
-        "rev": "24ac56de8809ae7a2cd0126f01110d4b762389fc",
+        "rev": "4bedaac81130ed4ccec4329cf633ade7e0372a89",
         "type": "github"
       },
       "original": {
@@ -128,6 +144,7 @@
     },
     "ncurses-idris": {
       "inputs": {
+        "flake-compat": "flake-compat",
         "flake-utils": "flake-utils_3",
         "idris-indexed": "idris-indexed",
         "idris2": [
@@ -138,27 +155,27 @@
         ]
       },
       "locked": {
-        "lastModified": 1673902883,
-        "narHash": "sha256-s2Wf0ICtEkydGIJ5n1jNw7fmhqMte3aCIjc3wXLnY7M=",
+        "lastModified": 1674489262,
+        "narHash": "sha256-mpLQ7t+kSu43KV/McN/hd3c7CIzffQiJcbhhoviRVCg=",
         "owner": "mattpolzin",
         "repo": "ncurses-idris",
-        "rev": "f6cd712e989a3ac9c997d44423d3fafa9f9927c5",
+        "rev": "c97cd13b7e015c5c3569be44ecba766bc96dbac7",
         "type": "github"
       },
       "original": {
         "owner": "mattpolzin",
-        "ref": "nix-experiment",
+        "ref": "main",
         "repo": "ncurses-idris",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1673606088,
-        "narHash": "sha256-wdYD41UwNwPhTdMaG0AIe7fE1bAdyHe6bB4HLUqUvck=",
+        "lastModified": 1674236650,
+        "narHash": "sha256-B4GKL1YdJnII6DQNNJ4wDW1ySJVx2suB1h/v4Ql8J0Q=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "37b97ae3dd714de9a17923d004a2c5b5543dfa6d",
+        "rev": "cfb43ad7b941d9c3606fb35d91228da7ebddbfc5",
         "type": "github"
       },
       "original": {
