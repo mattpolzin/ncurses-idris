@@ -319,6 +319,12 @@ namespace Window
   data HasWindow : (0 name : String) -> CursesState -> Type where
     ItHasWindow : IdentifiesWindow name ws => HasWindow name (Active _ ws _ _)
 
+  public export
+  moreWindowsHasWindow : HasWindow name (Active i xs (MkWindow name k d ** x) c) =>
+                         HasWindow name (Active i (y :: xs) (MkWindow name k d ** There x) c)
+  moreWindowsHasWindow {xs = (MkWindow name _ _ :: windows)} @{ItHasWindow @{Here}} = ItHasWindow
+  moreWindowsHasWindow {xs = (w :: windows)} @{ItHasWindow @{(There z)}} = ItHasWindow
+
   public export %inline
   DefaultWindow : String
   DefaultWindow = "default"

@@ -177,16 +177,22 @@ inWindow = InWindow
 --         using @SetWindow@ twice but I have yet to get the proofs to work.
 
 public export
+hasWindowWithin' : InWindow w s -> HasWindow w s
+hasWindowWithin' {s = (Active _ _ ((MkWindow name _ _) ** Here) _)} IsCurrentWindow = ItHasWindow
+hasWindowWithin' {s = (Active i (y :: xs) ((MkWindow name k d) ** (There x)) c)} p@(IsCurrentWindow) =
+  let c' : InWindow name (Active i xs ((MkWindow name k d) ** x) c) = IsCurrentWindow
+  in moreWindowsHasWindow @{hasWindowWithin' (assert_smaller p c')}
+
+public export
 %hint
 hasWindowWithin : InWindow w s => HasWindow w s
-hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** Here) _)} @{IsCurrentWindow} = ItHasWindow
-hasWindowWithin {s = (Active _ _ ((MkWindow name _ _) ** (There x)) _)} @{IsCurrentWindow} = hasWindowWithin
+hasWindowWithin @{p} = hasWindowWithin' p
 
 public export
 %hint
 identifiesCurrentWindow : InWindow w (Active _ ws _ _) => IdentifiesWindow w ws
-identifiesCurrentWindow {ws} @{p} with (hasWindowWithin @{p})
-  identifiesCurrentWindow {ws} @{p} | (ItHasWindow @{ident}) = ident
+identifiesCurrentWindow @{p} with (hasWindowWithin @{p})
+  identifiesCurrentWindow @{p} | (ItHasWindow @{ident}) = ident
 
 ||| If a given state has a window, setting a new current window on that state does not
 ||| change the fact that the state has the original window.
