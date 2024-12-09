@@ -2,58 +2,68 @@
   description = "NCurses support for Idris 2 apps compiled with the Chez Scheme backend.";
 
   inputs = {
-    flake-utils.url = "github:numtide/flake-utils";
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
-    idris2 = {
-      url = "github:idris-lang/Idris2/main";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    idris-indexed = {
-      url = "github:mattpolzin/idris-indexed/main";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.idris2.follows = "idris2";
-    };
+    idris2-packageset.url = "github:mattpolzin/nix-idris2-packages";
   };
 
-  outputs = { self, nixpkgs, flake-utils, flake-compat, idris2, idris-indexed }:
-    flake-utils.lib.eachDefaultSystem (system: 
-      let pkgs = nixpkgs.legacyPackages.${system};
-          stdenv = pkgs.stdenv;
-          ncurses = pkgs.ncurses;
-          lists = pkgs.lib.lists;
-          idris2' = idris2.defaultPackage.${system};
-          idris-indexed' = idris-indexed.packages.${system}.default;
-      in rec {
-      packages.default = stdenv.mkDerivation rec {
-        name = "ncurses-idris";
-        version = "0.4.0";
-        src = ./.;
-        idrisPackages = [ idris-indexed' ] ++ idris-indexed'.idrisPackages;
-        propagatedBuildInputs = [
-          ncurses
-        ];
-        buildInputs = [
-          idris2'
-        ] ++ idrisPackages;
+  outputs =
+    {
+      self,
+      nixpkgs,
+      idris2-packageset,
+      ...
+    }:
+    let
+      inherit (nixpkgs) lib;
+      forEachSystem =
+        f: lib.genAttrs lib.systems.flakeExposed (system: f system nixpkgs.legacyPackages.${system});
+    in
+    {
+      packages = forEachSystem (
+        system: pkgs:
+        let
+          buildIdris' = idris2-packageset.buildIdris'.${system};
+        in
+        {
+          default = buildIdris' {
+            ipkgName = "ncurses-idris";
+            src = builtins.path {
+              path = ./.;
+              name = "ncurses-idris-src";
+            };
+            buildInputs = [
+              pkgs.ncurses5
+            ];
+          };
+        }
+      );
+      devShells = forEachSystem (
+        system: pkgs:
+        let
+          inherit (idris2-packageset.packages.${system}) idris2 idris2Lsp;
+          inherit (nixpkgs.legacyPackages.${system}) mkShell;
+        in
+        {
+          default = mkShell {
+            packages = [
+              idris2
+              idris2Lsp
+            ];
 
-        IDRIS2 = "${idris2'}/bin/idris2";
-        IDRIS2_PREFIX = "${placeholder "out"}";
-        INDEXED_INSTALL_LOCATION = "${idris-indexed'}/idris2-0.6.0";
-        IDRIS2_PACKAGE_PATH = builtins.concatStringsSep ":" (builtins.map (p: "${p}/idris2-${idris2'.version}") idrisPackages);
+            inputsFrom = [
+              self.packages.${system}.default
+            ];
+          };
+        }
+      );
+      formatter = forEachSystem (system: pkgs: pkgs.nixfmt-rfc-style);
 
-        buildPhase = ''
-          make clean
-          make all
-        '';
-        installPhase = ''
-          make install
-        '';
-      };
-      checks.control_curses_ticker_example = 
-        (import flake-compat { src = ./examples/control_curses_ticker; inherit system; }).defaultNix.default;
-    }
-  );
+      checks = forEachSystem (
+        system: pkgs: {
+          control_curses_ticker_example = import ./examples/control_curses_ticker {
+            buildIdris = idris2-packageset.buildIdris.${system};
+            ncurses-idris = self.packages.${system}.default;
+          };
+        }
+      );
+    };
 }

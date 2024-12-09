@@ -3,7 +3,7 @@ IDRIS2 ?= idris2
 # system libncurses version:
 NCURSES_VERSION ?=
 # indexed Idris package:
-INDEXED_VERSION = 0.0.9
+INDEXED_VERSION = 0.0.10
 # install in the local depends directory by default:
 INDEXED_INSTALL_LOCATION ?= ./depends
 
