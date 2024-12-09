@@ -11,6 +11,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v18
+        with:
+          extra_nix_config: |
+            extra-trusted-public-keys = gh-nix-idris2-packages.cachix.org-1:iOqSB5DrESFT+3A1iNzErgB68IDG8BrHLbLkhztOXfo=
+            extra-substituters = https://gh-nix-idris2-packages.cachix.org
+          nix_path: nixpkgs=channel:nixos-unstable
       - name: Update example flake file
         env:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
