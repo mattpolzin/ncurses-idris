@@ -10,7 +10,6 @@ ifeq ($(findstring clang,$(CC_VERSION)),clang)
  LDFLAGS += ''
 else
  CFLAGS += -fPIC
- LDFLAGS += -fuse-ld=gold
 endif
 
 .PHONY : deps app all
