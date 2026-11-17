@@ -31,6 +31,8 @@ MACHINE := $(shell $(CC) -dumpmachine)
  	SHLIB_SUFFIX := .so
  endif
 
+CC_VERSION ?= "$(shell $(CC) --version)"
+
 ifeq ($(findstring clang,$(CC_VERSION)),clang)
  CFLAGS += ''
  LDFLAGS += ''
